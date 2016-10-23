@@ -24,10 +24,12 @@ if (__name__ == "__main__"):
 	cap = cv2.VideoCapture('vid.mov')
 	_, currFrame = cap.read()
 	count = int(cap.get(cv.CV_CAP_PROP_FRAME_COUNT))
+	fps = int(cap.get(cv.CV_CAP_PROP_FPS))
+	print count, fps
 	width = int(cap.get(cv.CV_CAP_PROP_FRAME_WIDTH)) * 2
 	height = int(cap.get(cv.CV_CAP_PROP_FRAME_HEIGHT))
 	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
-	video = cv2.VideoWriter('panorama.mov',fourcc,fps=24,frameSize=(width,height),isColor=1)
+	video = cv2.VideoWriter('panorama.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
 	for fr in range(1, count - 1):
 		_, nextFrame = cap.read()
 		# grayCurrFrame = cv2.cvtColor(currFrame, cv.CV_RGB2GRAY)
