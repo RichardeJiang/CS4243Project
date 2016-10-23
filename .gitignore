@@ -25,6 +25,7 @@
 *.png
 *.avi
 *.mp4
+*.mov
 
 # PDF files #
 *.pdf
