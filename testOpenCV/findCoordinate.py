@@ -1,6 +1,5 @@
 import numpy as np
 import cv2
-import cv2.cv as cv
 from matplotlib import pyplot as plt
 
 cap = cv2.VideoCapture('vid.mov')
@@ -18,14 +17,14 @@ color = np.random.randint(0, 255, (100, 3))
 
 ret, old_frame = cap.read()
 print old_frame.shape
-old_gray = cv2.cvtColor(old_frame, cv.CV_BGR2GRAY)
+old_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
 p0 = cv2.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
 
 mask = np.zeros_like(old_frame)
 
 while(1):
 	ret, frame = cap.read()
-	frame_gray = cv2.cvtColor(frame, cv.CV_BGR2GRAY)
+	frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 	p1, st, err = cv2.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
 	good_new = p1[st==1]
 	good_old = p0[st==1]
