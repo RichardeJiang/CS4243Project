@@ -20,16 +20,49 @@ def matchKeyPoints(kpsA, kpsB, featuresA, featuresB, ratio = 0.75, threshold = 0
 	
 	return
 
+def findHomographyMatrix(ptFrame1, ptFrame2):
+	# ptFrame1 is 3D numpy array, each element is 2D array of the coordinate
+	if (len(ptFrame1) < 4 or len(ptFrame2) < 4):
+		return
+	else:
+		homographyMatrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+		return homographyMatrix
+
+def warpTwoImages(img1, img2, H):
+    '''warp img2 to img1 with homograph matrix H'''
+    height1,width1 = img1.shape[:2]
+    height2,width2 = img2.shape[:2]
+    p1 = np.float32([[0,0],[0,height1],[width1,height1],[width1,0]]).reshape(-1,1,2)
+    p2 = np.float32([[0,0],[0,height2],[width2,height2],[width2,0]]).reshape(-1,1,2)
+    p3 = cv2.perspectiveTransform(p2, H)
+
+    #combint two images and reshape the image size
+    points = np.concatenate((p1, p3), axis=0)
+    [xmin, ymin] = np.int32(points.min(axis=0).ravel() - 0.5)
+    [xmax, ymax] = np.int32(points.max(axis=0).ravel() + 0.5)
+    M = np.array([[1,0,-xmin],[0,1,-ymin],[0,0,1]])
+
+    outputImg = cv2.warpPerspective(img2, M.dot(H), (xmax-xmin, ymax-ymin))
+    outputImg[-ymin:height1-ymin,-xmin:width1-xmin] = img1
+    return outputImg
+
 if (__name__ == "__main__"):
 	cap = cv2.VideoCapture('vid.mov')
 	_, currFrame = cap.read()
 	count = int(cap.get(cv.CV_CAP_PROP_FRAME_COUNT))
 	fps = int(cap.get(cv.CV_CAP_PROP_FPS))
 	print count, fps
-	width = int(cap.get(cv.CV_CAP_PROP_FRAME_WIDTH)) * 2
-	height = int(cap.get(cv.CV_CAP_PROP_FRAME_HEIGHT))
-	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
-	video = cv2.VideoWriter('panorama.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
+	# width = int(cap.get(cv.CV_CAP_PROP_FRAME_WIDTH)) * 2
+	# height = int(cap.get(cv.CV_CAP_PROP_FRAME_HEIGHT))
+	
+	index = 0
+	results = []
+
+	sift = cv2.SURF(400)
+	FLANN_INDEX_KDTREE = 0
+	index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+	search_params = dict(checks=50)
+
 	for fr in range(1, count - 1):
 		_, nextFrame = cap.read()
 		# grayCurrFrame = cv2.cvtColor(currFrame, cv.CV_RGB2GRAY)
@@ -39,13 +72,9 @@ if (__name__ == "__main__"):
 
 		### find homography matrix
 
-		sift = cv2.SIFT()
 		currKeyPoints, currDescriptor = sift.detectAndCompute(grayCurrFrame, None)
 		nextKeyPoints, nextDescriptor = sift.detectAndCompute(grayNextFrame, None)
 
-		FLANN_INDEX_KDTREE = 0
-		index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-		search_params = dict(checks=50)
 
 		flann = cv2.FlannBasedMatcher(index_params, search_params)
 		matches = flann.knnMatch(currDescriptor, nextDescriptor, k=2)
@@ -61,9 +90,19 @@ if (__name__ == "__main__"):
 
 			homographyMatrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
-			warped = cv2.warpPerspective(grayCurrFrame, homographyMatrix, (width, height))
-			video.write(warped)
+			#warped = cv2.warpPerspective(grayCurrFrame, homographyMatrix, (width, height))
+			warped = warpTwoImages(grayNextFrame, grayCurrFrame, homographyMatrix)
+			#cv2.imwrite('a/' + str(index) + '.jpg', warped)
+			results.append(warped)
+			#video.write(warped)
 
 		currFrame = warped
+		index += 1
+	width = len(results[0][0])
+	height = len(results[0])
+	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
+	video = cv2.VideoWriter('panorama.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
+	for warp in results:
 
+		video.write(warp)
 	pass
