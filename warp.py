@@ -1,9 +1,11 @@
 import numpy as np
 import cv2
 
-uoy = 126.
-loy = 105.
-lox = 1439.
+loy = 86.
+uoy = 145.
+lox = 1220.
+uox = 219.
+
 
 def findHomographyMatrix(src_pts, dst_pts):
 	# ptFrame1 is 3D numpy array, each element is 2D array of the coordinate
@@ -20,21 +22,24 @@ def warpTwoImages(img1, img2, H, cutp):
     p1 = np.float32([[0,0],[0,height1],[width1,height1],[width1,0]]).reshape(-1,1,2)
     p2 = np.float32([[0,0],[0,height2],[width2,height2],[width2,0]]).reshape(-1,1,2)
     p3 = cv2.perspectiveTransform(p2, H)
+    height3,width3 = p3.shape[:2]
     pp = cv2.perspectiveTransform(cutp, H)
     xcut = pp[0,0,0]
     ycut = pp[0,0,1] 
+    #T = np.float32([[1,0,lox - xcut],[0,1,uoy - ycut]])
+	#dst = cv2.warpAffine(pp, T, (height3+max(int(lox-xcut),0),width3+max(int(uoy-ycut),0)))   
     #combint two images and reshape the image size
     points = np.concatenate((p1, p3), axis=0)
 	
     [xmin, ymin] = [xcut-lox, ycut-loy]
-    [xmax, ymax] = [xcut, ycut+uoy]
+    [xmax, ymax] = [xcut+uox, ycut+uoy]
     #[xmin, ymin] = np.int32(points.min(axis=0).ravel() - 0.5)
     #[xmax, ymax] = np.int32(points.max(axis=0).ravel() + 0.5)
     M = np.array([[1,0,-xmin],[0,1,-ymin],[0,0,1]])
 
     outputImg = cv2.warpPerspective(img2, M.dot(H), (int(xmax-xmin), int(ymax-ymin)))
-    #outputImg[-ymin:height1-ymin,-xmin:width1-xmin] = img1
     return outputImg
+    #outputImg[-ymin:height1-ymin,-xmin:width1-xmin] = img1
 
 
 cap = cv2.VideoCapture('beachVolleyball1.mov')
@@ -67,7 +72,7 @@ print p0
 # Create a mask image for drawing purposes
 mask = np.zeros_like(old_frame)
 
-cutp = np.float32(np.array([[[631.,299.]]]))
+cutp = np.float32(np.array([[[440.,138.]]]))
 pano = np.float32(np.array([[[518.,267.]],[[458.,163.]],[[141.,277.]],[[142.,168.]]]))
 orin = np.float32(np.array([[[202.,288.]],[[440.,138.]],[[80.,134.]],[[282.,86.]]]))
 pimg = cv2.imread('pano.png')
@@ -90,6 +95,7 @@ while(ret):
 
     hi = findHomographyMatrix(good_old, good_new)
     curr = cv2.perspectiveTransform(curr, hi)
+    cutp = cv2.perspectiveTransform(cutp, hi)
     hg = findHomographyMatrix(curr, pano)
     fimg = warpTwoImages(pimg, frame, hg, cutp)
     results.append(fimg)
@@ -107,7 +113,7 @@ while(ret):
 
 height,width = fimg.shape[:2]
 fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v') # note the lower case
-video = cv2.VideoWriter('panorama.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
+video = cv2.VideoWriter('panorama2.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
 for warp in results:
     video.write(warp)
 
