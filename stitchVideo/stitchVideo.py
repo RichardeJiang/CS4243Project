@@ -17,22 +17,26 @@ for i in range(0, len(filenames)):
 	w=int(cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH))
 	h=int(cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT))
 	fourcc = cv2.cv.CV_FOURCC(*'XVID')
-	out = cv2.VideoWriter(ofile[i], fourcc, fps, (w*2, h))
+	out = cv2.VideoWriter(ofile[i], fourcc, fps, (w*3, 2*h))
 	ret, old_frame = cap.read()
 
-	# x,y,z = old_frame.shape
-	# bg = np.zeros(shape=(x, 3*y, z), dtype=np.uint8)
-	# bg[0:x, y:2*y] = old_frame
+	x,y,z = old_frame.shape
+	bg = np.zeros(shape=(2*x, 3*y, z), dtype=np.uint8)
+	bg[x/2:x+x/2, y:2*y] = old_frame
 
+	frame_aug = np.zeros(shape=(2*x, 3*y, z), dtype=np.uint8)
 	stitcher = Stitcher()
 	for fr in range(1, frame_count):
 		ret, frame = cap.read()
-		print fr, old_frame.shape
-		result = stitcher.stitch([frame, old_frame])
+		frame_aug.fill(0)
+		frame_aug[x/2:x+x/2, y:2*y] = frame
+
+		print fr, bg.shape
+		result = stitcher.stitch([frame_aug, bg])
 		out.write(result)
 		
 		cv2.imshow("out", result)
-		old_frame = result.copy()
+		bg = result.copy()
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
 
