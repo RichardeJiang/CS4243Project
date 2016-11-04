@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import cv2.cv as cv
 from matplotlib import pyplot as plt
 
 cap = cv2.VideoCapture('vid.mov')
@@ -11,7 +12,7 @@ feature_params = dict( maxCorners = 20,
 
 lk_params = dict( winSize = (15, 15),
 					maxLevel = 2,
-					criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+					criteria = (cv.CV_TERMCRIT_ITER | cv.CV_TERMCRIT_EPS, 10, 0.03))
 
 color = np.random.randint(0, 255, (100, 3))
 
