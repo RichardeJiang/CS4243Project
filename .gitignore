@@ -21,7 +21,8 @@
 *.zip
 
 # Videos and images #
-*.jpg
+*.psd
+# *.jpg
 *.png
 *.avi
 *.mp4
