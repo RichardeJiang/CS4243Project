@@ -37,6 +37,7 @@ if (__name__ == "__main__"):
 	cumulatedDistances = [0.0, 0.0, 0.0, 0.0]
 
 	dashBoard = cv2.imread('dashBoard.jpg')
+	dashBoardOriginal = dashBoard
 	height, width = dashBoard.shape[:2]
 	fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v') # note the lower case
 	video = cv2.VideoWriter('stats1.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
@@ -45,10 +46,14 @@ if (__name__ == "__main__"):
 
 	while(_):
 		_, frame = cap.read()
+
+		if not _:
+			break
+
 		grayNew = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 		# calculate new player position coordinates
-		playerNewPos, st, err = cv2.calcOpticalFlowPyrLK(old_gray, frame_gray, playerPos, None, **lk_params)
+		playerNewPos, st, err = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
 
 		goodOld = playerPos[st==1]
 		goodNew = playerNewPos[st==1]
@@ -67,10 +72,10 @@ if (__name__ == "__main__"):
 					orgList[index], fontFace, 3, (255, 0, 0))
 
 		video.write(dashBoard)
-		dashBoard = cv2.imread('dashBoard.jpg')
+		dashBoard = dashBoardOriginal
 
-		grayOld = grayNew
-		playerPos = playerNewPos
+		grayOld = grayNew.copy()
+		playerPos = goodNew.reshape(-1, 1, 2)
 
 	cv2.destroyAllWindows()
 	cap.release()

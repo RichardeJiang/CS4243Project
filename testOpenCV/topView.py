@@ -11,10 +11,10 @@ def findHomoMatrix(cornerPts):
 			[0, 800]], dtype = "float32")
 
 	dst = np.array([
-			[72, 60],
+			[70, 60],
 			[470, 60],
-			[470, 258],
-			[72, 258]], dtype = "float32")
+			[470, 260],
+			[70, 260]], dtype = "float32")
 
 	M = cv2.getPerspectiveTransform(src, dst)
 	return M
@@ -42,9 +42,9 @@ def topDownView(image, homoMatrix, playerPts):
 		newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
 		newPos = newPos[:2]
 		if index < 2:
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 10, (0, 0, 255), -1)
+			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (0, 0, 255), -1)
 		else:
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 10, (255, 0, 0), -1)
+			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 0, 0), -1)
 		mappedPlayerPos.append(newPos)
 		index += 1
 
@@ -52,15 +52,90 @@ def topDownView(image, homoMatrix, playerPts):
 
 	return topViewArt, mappedPlayerPos
 
+def checkJump(firstPlayerPosList, secondPlayerPosList):
+	# the initial idea to check jumping is to see every 20 frames
+	# if the offset in y direction is above a certain threshold and in x direction is below a threshold, 
+	# consider it as a jump
+	for index in range(0, 4):
+		playerBeforePosX = firstPlayerPosList[index][0][0]
+		playerAfterPosX = secondPlayerPosList[index][0][0]
+		playerbeforePosY = firstPlayerPosList[index][0][1]
+		playerAfterPosY = secondPlayerPosList[index][0][1]
+
+		if playerbeforePosY - playerAfterPosY >= 30 and
+			abs(playerBeforePosX - playerAfterPosX) <= 8:
+			return True
+
+	return False
+
 if (__name__ == '__main__'):
-	image = cv2.imread('test.jpg')
-	cornerPts = []
+
+	# use a list to store all generated frames first since we need to check whether it's a jump or not
+	# and if it is then need to revert the previous 20 frames
+		# params for ShiTomasi corner detection
+	feature_params = dict( maxCorners = 100,
+		qualityLevel = 0.3,
+		minDistance = 7,
+		blockSize = 7 )
+
+	# Parameters for lucas kanade optical flow
+	lk_params = dict( winSize  = (15,15),
+		maxLevel = 2,
+		criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+
+	# Create some random colors
+	color = np.random.randint(0,255,(100,3))
+
+	#need to be filled in; use this to check the player position
+	playerPos = np.float32(np.array())
+
+	# use the shirt to check the jumps
+	playerShirtPos = np.float32(np.array())
+
+	cap = cv2.VideoCapture('topView1.mov')
+	_, frame = cap.read()
+
+	grayOld = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+	index = 0
+
+	#prepare the matrix
+	cornerPts = np.float32(np.array())
 	homoMatrix = findHomoMatrix(cornerPts)
-	playerPts = np.array([
-		[342, 777],
-		[417, 861],
-		[912, 708],
-		[1134, 717]], dtype="float32")
-	topViewArtNew, mappedPlayerPos = topDownView(image, homoMatrix, playerPts)
-	cv2.imwrite('testNew.jpg', topViewArtNew)
+
+	while(_):
+		_, frame = cap.read()
+		if not _:
+			break
+
+		grayNew = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+		playerNewPos, st1, err1 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
+		playerNewShirtPos, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerShirtPos, None, **lk_params)
+
+		goodPlayerOld = playerPos(st1 == 1)
+		goodPlayerNew = playerNewPos(st1 == 1)
+
+		goodShirtOld = playerShirtPos(st2 == 1)
+		goodShirtNew = playerNewShirtPos(st2 == 1)
+
+		# topdown view to be implemented here
+		# also check the crrent frame with the one 20 frames ahead/before for jumps
+
+		grayOld = grayNew.copy()
+		playerPos = playerNewPos
+		playerShirtPos = playerNewShirtPos
+
+
+
+	# original implementation
+	# image = cv2.imread('test.jpg')
+	# cornerPts = []
+	# homoMatrix = findHomoMatrix(cornerPts)
+	# playerPts = np.array([
+	# 	[342, 777],
+	# 	[417, 861],
+	# 	[912, 708],
+	# 	[1134, 717]], dtype="float32")
+	# topViewArtNew, mappedPlayerPos = topDownView(image, homoMatrix, playerPts)
+	# cv2.imwrite('testNew.jpg', topViewArtNew)
 	pass
