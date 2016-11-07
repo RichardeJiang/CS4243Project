@@ -92,7 +92,7 @@ def checkJump(firstPlayerPosList, secondPlayerPosList):
 		playerbeforePosY = firstPlayerPosList[index][0][1]
 		playerAfterPosY = secondPlayerPosList[index][0][1]
 
-		if playerbeforePosY - playerAfterPosY >= 30 and abs(playerBeforePosX - playerAfterPosX) <= 8:
+		if abs(playerbeforePosY - playerAfterPosY) >= 20 and abs(playerBeforePosX - playerAfterPosX) <= 8:
 			return True
 
 	return False
@@ -101,7 +101,7 @@ if (__name__ == '__main__'):
 
 	# use a list to store all generated frames first since we need to check whether it's a jump or not
 	# and if it is then need to revert the previous 20 frames
-		# params for ShiTomasi corner detection
+	# params for ShiTomasi corner detection
 	feature_params = dict( maxCorners = 100,
 		qualityLevel = 0.3,
 		minDistance = 7,
@@ -121,13 +121,11 @@ if (__name__ == '__main__'):
 	testTopViewList = []
 
 	# use the shirt to check the jumps
-	#playerShirtPos = np.float32(np.array())
 
 	cap = cv2.VideoCapture('beachVolleyball1.mov')
 	_, frame = cap.read()
 
 	grayOld = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-	index = 0
 
 	#prepare the matrix
 	cornerPts = np.float32(np.array([[[196, 62]],[[440, 137]],[[204, 290]],[[48, 88]]]))
@@ -138,7 +136,14 @@ if (__name__ == '__main__'):
 	homoMatrix = findHomoMatrix(cornerPts, mappedFeaturePts)
 	topViewArtNew, mappedPlayerPos = topDownView(grayOld, homoMatrix, playerPos)
 
+	playerPosList = []
+	playerPosList.append(playerPos.copy())
+
 	testTopViewList.append(topViewArtNew.copy())
+	index = 0
+	jumpFlag = False
+	afterJumpCounter = 0
+	checkJumpWindowSize = 15
 
 	while(_):
 		_, frame = cap.read()
@@ -148,7 +153,6 @@ if (__name__ == '__main__'):
 		grayNew = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 		playerNewPos, st1, err1 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
-		#playerNewShirtPos, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerShirtPos, None, **lk_params)
 		featureNewPts, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, featurePts, None, **lk_params)
 
 		homoMatrix = findHomoMatrix(featureNewPts, mappedFeaturePts)
@@ -156,18 +160,20 @@ if (__name__ == '__main__'):
 		goodPlayerOld = playerPos[st1 == 1]
 		goodPlayerNew = playerNewPos[st1 == 1]
 
-		#goodShirtOld = playerShirtPos(st2 == 1)
-		#goodShirtNew = playerNewShirtPos(st2 == 1)
-
-		# topdown view to be implemented here
-		# also check the crrent frame with the one 20 frames ahead/before for jumps
+		if index >= checkJumpWindowSize and jumpFlag == False and afterJumpCounter>= checkJumpWindowSize:
+			jumpFlag = checkJump(playerPosList[index - checkJumpWindowSize], playerPosList[index])
+			if jumpFlag == True:
+				print 'JUMP!!!'
+				afterJumpCounter = 0
 
 		topViewArtNew, mappedPlayerPos = topDownView(grayNew, homoMatrix, playerNewPos)
 		testTopViewList.append(topViewArtNew.copy())
+		playerPosList.append(playerNewPos.copy())
 		grayOld = grayNew.copy()
 		playerPos = playerNewPos.copy()
 		featurePts = featureNewPts.copy()
-		#playerShirtPos = playerNewShirtPos
+		index += 1
+		afterJumpCounter += 1
 
 
 	height,width = topViewArtNew.shape[:2]
