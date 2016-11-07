@@ -14,8 +14,15 @@ def checkJump(firstPlayerPosList, secondPlayerPosList):
 		playerbeforePosY = firstPlayerPosList[index][0][1]
 		playerAfterPosY = secondPlayerPosList[index][0][1]
 
-		if abs(playerbeforePosY - playerAfterPosY) >= 15 and abs(playerBeforePosX - playerAfterPosX) <= 15:
-			return True
+		if index < 2:
+			if abs(playerbeforePosY - playerAfterPosY) >= 15 and abs(playerBeforePosX - playerAfterPosX) <= 10:
+				print index + 1
+				return True
+		else:
+			if abs(playerbeforePosY - playerAfterPosY) >= 20 and abs(playerBeforePosX - playerAfterPosX) <= 10:
+				print index + 1
+			#if abs(playerbeforePosY - playerAfterPosY) >= 20:
+				return True
 
 	return False
 
@@ -45,6 +52,7 @@ playerPosList.append(p0.copy())
 index = 0
 jumpFlag = False
 afterJumpCounter = 0
+checkJumpWindow = 25
 
 print p0
 
@@ -61,11 +69,12 @@ while(ret):
 	good_new = p1[st==1]
 	good_old = p0[st==1]
 
-	if index >= 25 and jumpFlag == False and afterJumpCounter>= 25:
-		jumpFlag = checkJump(playerPosList[index - 25], playerPosList[index])
+	if index >= checkJumpWindow and jumpFlag == False and afterJumpCounter>= checkJumpWindow:
+		jumpFlag = checkJump(playerPosList[index - checkJumpWindow], playerPosList[index])
 		if jumpFlag == True:
 			print 'JUMP!!!'
 			afterJumpCounter = 0
+			jumpFlag = False
 
 	for i, (new, old) in enumerate(zip(good_new, good_old)):
 		a, b = new.ravel()

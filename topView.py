@@ -165,6 +165,7 @@ if (__name__ == '__main__'):
 			if jumpFlag == True:
 				print 'JUMP!!!'
 				afterJumpCounter = 0
+				jumpFlag = False
 
 		topViewArtNew, mappedPlayerPos = topDownView(grayNew, homoMatrix, playerNewPos)
 		testTopViewList.append(topViewArtNew.copy())
