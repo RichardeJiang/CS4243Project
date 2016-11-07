@@ -1,4 +1,5 @@
 import cv2
+import cv2.cv as cv
 import numpy as np
 
 def findHomoMatrix(cornerPts):
@@ -38,15 +39,19 @@ def topDownView(image, homoMatrix, playerPts):
 	index = 0
 	for pts in playerPts:
 		temp = pts[0].tolist()
+		if index < 2:
+			temp[1] += 20
+		else:
+			temp[1] += 35
 		temp.append(1)
 		pts = np.asarray(temp)
 		newPos = homoMatrix.dot(pts).tolist()
 		newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
 		newPos = newPos[:2]
 		if index < 2:
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (0, 0, 255), -1)
+			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (0, 0, 0), -1)
 		else:
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 0, 0), -1)
+			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
 		mappedPlayerPos.append(newPos)
 		index += 1
 
@@ -64,8 +69,7 @@ def checkJump(firstPlayerPosList, secondPlayerPosList):
 		playerbeforePosY = firstPlayerPosList[index][0][1]
 		playerAfterPosY = secondPlayerPosList[index][0][1]
 
-		if playerbeforePosY - playerAfterPosY >= 30 and
-			abs(playerBeforePosX - playerAfterPosX) <= 8:
+		if playerbeforePosY - playerAfterPosY >= 30 and abs(playerBeforePosX - playerAfterPosX) <= 8:
 			return True
 
 	return False
@@ -83,18 +87,18 @@ if (__name__ == '__main__'):
 	# Parameters for lucas kanade optical flow
 	lk_params = dict( winSize  = (15,15),
 		maxLevel = 2,
-		criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+		criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, 0.03))
 
 	# Create some random colors
 	color = np.random.randint(0,255,(100,3))
 
 	#need to be filled in; use this to check the player position
-	playerPos = np.float32(np.array([[[188, 168]],[[327, 146]], [[980, 460]],[[410, 225]]]))
+	playerPos = np.float32(np.array([[[101, 66]],[[172, 57]], [[209, 79]],[[506, 197]]]))
 
 	testTopViewList = []
 
 	# use the shirt to check the jumps
-	playerShirtPos = np.float32(np.array())
+	#playerShirtPos = np.float32(np.array())
 
 	cap = cv2.VideoCapture('panoramadiagonal.mov')
 	_, frame = cap.read()
@@ -103,7 +107,7 @@ if (__name__ == '__main__'):
 	index = 0
 
 	#prepare the matrix
-	cornerPts = np.float32(np.array([[393, 126],[876, 279],[405, 579],[95, 177]]))
+	cornerPts = np.float32(np.array([[[196, 62]],[[440, 137]],[[204, 290]],[[48, 88]]]))
 	homoMatrix = findHomoMatrix(cornerPts)
 	topViewArtNew, mappedPlayerPos = topDownView(grayOld, homoMatrix, playerPos)
 
@@ -118,9 +122,12 @@ if (__name__ == '__main__'):
 
 		playerNewPos, st1, err1 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
 		#playerNewShirtPos, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerShirtPos, None, **lk_params)
+		cornerNewPts, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
 
-		goodPlayerOld = playerPos(st1 == 1)
-		goodPlayerNew = playerNewPos(st1 == 1)
+		homoMatrix = findHomoMatrix(cornerNewPts)
+
+		goodPlayerOld = playerPos[st1 == 1]
+		goodPlayerNew = playerNewPos[st1 == 1]
 
 		#goodShirtOld = playerShirtPos(st2 == 1)
 		#goodShirtNew = playerNewShirtPos(st2 == 1)
@@ -136,8 +143,8 @@ if (__name__ == '__main__'):
 
 
 	height,width = topViewArtNew.shape[:2]
-	fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v') # note the lower case
-	video = cv2.VideoWriter('panorama3.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
+	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
+	video = cv2.VideoWriter('panorama.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
 	for warp in testTopViewList:
 		video.write(warp)
 
