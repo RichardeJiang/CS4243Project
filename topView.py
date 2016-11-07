@@ -152,4 +152,6 @@ if (__name__ == '__main__'):
 	# 	[1134, 717]], dtype="float32")
 	# topViewArtNew, mappedPlayerPos = topDownView(image, homoMatrix, playerPts)
 	# cv2.imwrite('testNew.jpg', topViewArtNew)
+	cv2.destroyAllWindows()
+	cap.release()
 	pass
