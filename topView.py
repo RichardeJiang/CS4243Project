@@ -2,7 +2,7 @@ import cv2
 import cv2.cv as cv
 import numpy as np
 
-def findHomoMatrix(cornerPts):
+def findHomoMatrix(cornerPts, featurePts):
 	# if having corners points, then do:
 	# src = cornerPts
 	src = np.array([
@@ -13,14 +13,37 @@ def findHomoMatrix(cornerPts):
 
 	src = cornerPts
 
+	# original corner pts
 	dst = np.array([
 			[70, 60],
 			[470, 60],
 			[470, 260],
 			[70, 260]], dtype = "float32")
 
+	# film 1
+	dst = featurePts
+
 	M = cv2.getPerspectiveTransform(src, dst)
 	return M
+
+def findFeaturePtsMapping(cornerPts, featurePts):
+	src = cornerPts
+	dst = np.array([
+			[70, 60],
+			[470, 60],
+			[470, 260],
+			[70, 260]], dtype = "float32")
+	homoMatrix = cv2.getPerspectiveTransform(src, dst)
+	mappedFeaturePts = []
+	for pts in featurePts:
+		temp = pts[0].tolist()
+		temp.append(1)
+		pts = np.asarray(temp)
+		newPos = homoMatrix.dot(pts).tolist()
+		newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
+		newPos = newPos[:2]
+		mappedFeaturePts.append(newPos)
+	return np.float32(np.asarray(mappedFeaturePts)).reshape(-1, 1, 2)
 
 def topDownView(image, homoMatrix, playerPts):
 	# assume that the first 2 players are in one team, and the rest in another
@@ -42,7 +65,7 @@ def topDownView(image, homoMatrix, playerPts):
 		if index < 2:
 			temp[1] += 20
 		else:
-			temp[1] += 35
+			temp[1] += 40
 		temp.append(1)
 		pts = np.asarray(temp)
 		newPos = homoMatrix.dot(pts).tolist()
@@ -100,7 +123,7 @@ if (__name__ == '__main__'):
 	# use the shirt to check the jumps
 	#playerShirtPos = np.float32(np.array())
 
-	cap = cv2.VideoCapture('panoramadiagonal.mov')
+	cap = cv2.VideoCapture('beachVolleyball1.mov')
 	_, frame = cap.read()
 
 	grayOld = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -108,7 +131,11 @@ if (__name__ == '__main__'):
 
 	#prepare the matrix
 	cornerPts = np.float32(np.array([[[196, 62]],[[440, 137]],[[204, 290]],[[48, 88]]]))
-	homoMatrix = findHomoMatrix(cornerPts)
+	featurePts = np.float32(np.array([[[293.5, 83]],[[355, 193]],[[172, 208]],[[46.5, 137]]]))
+	mappedFeaturePts = findFeaturePtsMapping(cornerPts, featurePts)
+	print mappedFeaturePts
+
+	homoMatrix = findHomoMatrix(cornerPts, mappedFeaturePts)
 	topViewArtNew, mappedPlayerPos = topDownView(grayOld, homoMatrix, playerPos)
 
 	testTopViewList.append(topViewArtNew.copy())
@@ -122,9 +149,9 @@ if (__name__ == '__main__'):
 
 		playerNewPos, st1, err1 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
 		#playerNewShirtPos, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerShirtPos, None, **lk_params)
-		cornerNewPts, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
+		featureNewPts, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, featurePts, None, **lk_params)
 
-		homoMatrix = findHomoMatrix(cornerNewPts)
+		homoMatrix = findHomoMatrix(featureNewPts, mappedFeaturePts)
 
 		goodPlayerOld = playerPos[st1 == 1]
 		goodPlayerNew = playerNewPos[st1 == 1]
@@ -139,6 +166,7 @@ if (__name__ == '__main__'):
 		testTopViewList.append(topViewArtNew.copy())
 		grayOld = grayNew.copy()
 		playerPos = playerNewPos.copy()
+		featurePts = featureNewPts.copy()
 		#playerShirtPos = playerNewShirtPos
 
 
@@ -148,17 +176,6 @@ if (__name__ == '__main__'):
 	for warp in testTopViewList:
 		video.write(warp)
 
-	# original implementation
-	# image = cv2.imread('test.jpg')
-	# cornerPts = []
-	# homoMatrix = findHomoMatrix(cornerPts)
-	# playerPts = np.array([
-	# 	[342, 777],
-	# 	[417, 861],
-	# 	[912, 708],
-	# 	[1134, 717]], dtype="float32")
-	# topViewArtNew, mappedPlayerPos = topDownView(image, homoMatrix, playerPts)
-	# cv2.imwrite('testNew.jpg', topViewArtNew)
 	cv2.destroyAllWindows()
 	cap.release()
 	pass
