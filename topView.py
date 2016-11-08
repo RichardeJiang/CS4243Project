@@ -1,16 +1,93 @@
 import cv2
 import cv2.cv as cv
 import numpy as np
+from math import factorial
+from scipy.signal import savgol_filter
 
-def findHomoMatrix(cornerPts, featurePts):
+def smoothList(list,strippedXs=False,degree=20):  
+
+	if strippedXs==True: return Xs[0:-(len(list)-(len(list)-degree+1))]  
+
+	smoothed=[0]*(len(list)-degree+1)  
+
+	for i in range(len(smoothed)):  
+
+		smoothed[i]=sum(list[i:i+degree])/float(degree)  
+
+	return smoothed
+
+def smoothListGaussian(list,strippedXs=False,degree=5):  
+
+	window=degree*2-1  
+	weight=np.array([1.0]*window)  
+	weightGauss=[]  
+
+	for i in range(window):  
+
+		i=i-degree+1  
+
+		frac=i/float(window)  
+
+		gauss=1/(np.exp((4*(frac))**2))  
+
+		weightGauss.append(gauss)  
+
+	weight=np.array(weightGauss)*weight  
+
+	smoothed=[0.0]*(len(list)-window)  
+
+	for i in range(len(smoothed)):  
+
+		smoothed[i]=sum(np.array(list[i:i+window])*weight)/sum(weight)  
+
+	return smoothed
+
+def smoothPlayerPosData(data):
+	player1X = smoothList([ele[0][0][0] for ele in data])
+	player1Y = smoothList([ele[0][0][1] for ele in data])
+	player2X = smoothList([ele[1][0][0] for ele in data])
+	player2Y = smoothList([ele[1][0][1] for ele in data])
+	player3X = smoothList([ele[2][0][0] for ele in data])
+	player3Y = smoothList([ele[2][0][1] for ele in data])
+	player4X = smoothList([ele[3][0][0] for ele in data])
+	player4Y = smoothList([ele[3][0][1] for ele in data])
+
+	# player1X = savgol_filter(np.asarray([ele[0][0][0] for ele in data]),21,5)
+	# player1Y = savgol_filter(np.asarray([ele[0][0][1] for ele in data]),21,5)
+	# player2X = savgol_filter(np.asarray([ele[1][0][0] for ele in data]),21,5)
+	# player2Y = savgol_filter(np.asarray([ele[1][0][1] for ele in data]),21,5)
+	# player3X = savgol_filter(np.asarray([ele[2][0][0] for ele in data]),21,5)
+	# player3Y = savgol_filter(np.asarray([ele[2][0][1] for ele in data]),21,5)
+	# player4X = savgol_filter(np.asarray([ele[3][0][0] for ele in data]),21,5)
+	# player4Y = savgol_filter(np.asarray([ele[3][0][1] for ele in data]),21,5)
+
+	player1X = [player1X[0]] * (len(data) - len(player1X)) + player1X
+	player1Y = [player1Y[0]] * (len(data) - len(player1Y)) + player1Y
+	player2X = [player2X[0]] * (len(data) - len(player2X)) + player2X
+	player2Y = [player2Y[0]] * (len(data) - len(player2Y)) + player2Y
+	player3X = [player3X[0]] * (len(data) - len(player3X)) + player3X
+	player3Y = [player3Y[0]] * (len(data) - len(player3Y)) + player3Y
+	player4X = [player4X[0]] * (len(data) - len(player4X)) + player4X
+	player4Y = [player4Y[0]] * (len(data) - len(player4Y)) + player4Y
+
+	for index in range(0, len(data)):
+		data[index][0][0][0] = player1X[index]
+		data[index][0][0][1] = player1Y[index]
+		data[index][1][0][0] = player2X[index]
+		data[index][1][0][1] = player2Y[index]
+		data[index][2][0][0] = player3X[index]
+		data[index][2][0][1] = player3Y[index]
+		data[index][3][0][0] = player4X[index]
+		data[index][3][0][1] = player4Y[index]
+
+	return data
+
+# def smoothPlayerPosData(data):
+# 	return savgol_filter(data)
+
+def findHomoMatrixTopDown(cornerPts):
 	# if having corners points, then do:
 	# src = cornerPts
-	src = np.array([
-			[130, 550],
-			[1630, 575],
-			[1760, 860],
-			[0, 800]], dtype = "float32")
-
 	src = cornerPts
 
 	# original corner pts
@@ -20,11 +97,16 @@ def findHomoMatrix(cornerPts, featurePts):
 			[470, 260],
 			[70, 260]], dtype = "float32")
 
-	# film 1
-	dst = featurePts
-
 	M = cv2.getPerspectiveTransform(src, dst)
 	return M
+
+def findHomographyMatrix(src_pts, dst_pts):
+	# ptFrame1 is 3D numpy array, each element is 2D array of the coordinate
+	if (len(src_pts) < 4 or len(dst_pts) < 4):
+		return
+	else:
+		homographyMatrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+		return homographyMatrix
 
 def findFeaturePtsMapping(cornerPts, featurePts):
 	src = cornerPts
@@ -65,7 +147,7 @@ def topDownView(image, homoMatrix, playerPts):
 		if index < 3:
 			temp[1] += 20
 		else:
-			temp[1] += 40
+			temp[1] += 45
 		temp.append(1)
 		pts = np.asarray(temp)
 		newPos = homoMatrix.dot(pts).tolist()
@@ -135,11 +217,10 @@ if (__name__ == '__main__'):
 
 	#prepare the matrix
 	cornerPts = np.float32(np.array([[[196, 62]],[[440, 137]],[[204, 290]],[[48, 88]]]))
-	featurePts = np.float32(np.array([[[293.5, 83]],[[355, 193]],[[172, 208]],[[46.5, 137]]]))
-	mappedFeaturePts = findFeaturePtsMapping(cornerPts, featurePts)
-	print mappedFeaturePts
-
-	homoMatrix = findHomoMatrix(cornerPts, mappedFeaturePts)
+	featurePts = np.float32(np.array([[[36.,135.]],[[294.,80.]],[[122.,185.]],[[224.,70.]],[[172.,206.]],[[134.,158.]],[[60.,142.]],[[80.,170.]],[[95.,218.]],[[27.,218.]],[[45.,186.]],[[28.,264.]],
+[[354., 69.]],[[230.,43.]]]))	
+	
+	homoMatrix = findHomoMatrixTopDown(cornerPts)
 	topViewArtNew, mappedPlayerPos = topDownView(grayOld, homoMatrix, playerPos)
 
 	playerPosList = []
@@ -150,8 +231,10 @@ if (__name__ == '__main__'):
 	jumpFlag = [False] * 4
 	afterJumpCounter = [0] * 4
 	checkJumpWindow = 29
+	updateWindow = 40
 	updateFutureFlag = [False] * 4
 
+	curr = cornerPts
 
 	homoMatrixList = []
 	frameList = []
@@ -168,9 +251,15 @@ if (__name__ == '__main__'):
 		playerNewPos, st1, err1 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
 		featureNewPts, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, featurePts, None, **lk_params)
 
+		good_new = featureNewPts[st2==1]
+		good_old = featurePts[st2==1]
+		
+		hi = findHomographyMatrix(good_old,good_new)
+		curr = cv2.perspectiveTransform(curr, hi)
+		homoMatrix = findHomoMatrixTopDown(curr)
+
 		playerNewPosCopy = playerNewPos.copy()
 
-		homoMatrix = findHomoMatrix(featureNewPts, mappedFeaturePts)
 
 		for playerIndex in range(0, 4):
 			if index >= checkJumpWindow and jumpFlag[playerIndex] == False and afterJumpCounter[playerIndex] >= checkJumpWindow:
@@ -183,13 +272,13 @@ if (__name__ == '__main__'):
 					updateFutureFlag[playerIndex] = True
 
 					for newPageIndex in range(0, checkJumpWindow):
-						playerPosList[index - 1 - newPageIndex][playerIndex] = playerPosList[index - 1 - checkJumpWindow][playerIndex]
+						playerPosList[index - newPageIndex][playerIndex] = playerPosList[index - checkJumpWindow][playerIndex]
 
 		if True in updateFutureFlag:
 			for playerIndex in range(0, 4):
 				if updateFutureFlag[playerIndex] == True:
 					if afterJumpCounter[playerIndex] < checkJumpWindow:
-						playerNewPosCopy[playerIndex] = playerPosList[len(playerPosList) - checkJumpWindow][playerIndex]
+						playerNewPosCopy[playerIndex] = playerPosList[-1][playerIndex]
 					else:
 						updateFutureFlag[playerIndex] = False
 
@@ -199,10 +288,11 @@ if (__name__ == '__main__'):
 		frameList.append(grayOld)
 		grayOld = grayNew.copy()
 		playerPos = playerNewPos.copy()
-		featurePts = featureNewPts.copy()
+		featurePts = good_new.reshape(-1,1,2)
 		index += 1
 		afterJumpCounter = [ele + 1 for ele in afterJumpCounter]
 
+	playerPosList = smoothPlayerPosData(playerPosList)
 
 	for frameIndex in range(0, frameCount):
 		topViewArtNew, mappedPlayerPos = topDownView(frameList[frameIndex], homoMatrixList[frameIndex], playerPosList[frameIndex])
