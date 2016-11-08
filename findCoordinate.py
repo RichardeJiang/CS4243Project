@@ -14,10 +14,10 @@ def checkJump(firstPlayerPosList, secondPlayerPosList, playerIndex):
 	playerAfterPosY = secondPlayerPosList[playerIndex][0][1]
 
 	if playerIndex < 3:
-		if abs(playerBeforePosY - playerAfterPosY) >= 12 and abs(playerBeforePosX - playerAfterPosX) <= 15:
+		if playerBeforePosY - playerAfterPosY >= 10 and abs(playerBeforePosX - playerAfterPosX) <= 10:
 			return True
 	else:
-		if abs(playerBeforePosY - playerAfterPosY) >= 25 and abs(playerBeforePosX - playerAfterPosX) <= 15:
+		if playerBeforePosY - playerAfterPosY >= 25 and abs(playerBeforePosX - playerAfterPosX) <= 10:
 		#if abs(playerbeforePosY - playerAfterPosY) >= 20:
 			return True
 

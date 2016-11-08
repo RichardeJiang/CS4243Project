@@ -62,7 +62,7 @@ def topDownView(image, homoMatrix, playerPts):
 	index = 0
 	for pts in playerPts:
 		temp = pts[0].tolist()
-		if index < 2:
+		if index < 3:
 			temp[1] += 20
 		else:
 			temp[1] += 40
@@ -82,17 +82,21 @@ def topDownView(image, homoMatrix, playerPts):
 
 	return topViewArt, mappedPlayerPos
 
-def checkJump(firstPlayerPosList, secondPlayerPosList):
+def checkJump(firstPlayerPosList, secondPlayerPosList, playerIndex):
 	# the initial idea to check jumping is to see every 20 frames
 	# if the offset in y direction is above a certain threshold and in x direction is below a threshold, 
 	# consider it as a jump
-	for index in range(0, 4):
-		playerBeforePosX = firstPlayerPosList[index][0][0]
-		playerAfterPosX = secondPlayerPosList[index][0][0]
-		playerbeforePosY = firstPlayerPosList[index][0][1]
-		playerAfterPosY = secondPlayerPosList[index][0][1]
+	playerBeforePosX = firstPlayerPosList[playerIndex][0][0]
+	playerAfterPosX = secondPlayerPosList[playerIndex][0][0]
+	playerBeforePosY = firstPlayerPosList[playerIndex][0][1]
+	playerAfterPosY = secondPlayerPosList[playerIndex][0][1]
 
-		if abs(playerbeforePosY - playerAfterPosY) >= 20 and abs(playerBeforePosX - playerAfterPosX) <= 8:
+	if playerIndex < 3:
+		if playerBeforePosY - playerAfterPosY >= 10 and abs(playerBeforePosX - playerAfterPosX) <= 10:
+			return True
+	else:
+		if playerBeforePosY - playerAfterPosY >= 25 and abs(playerBeforePosX - playerAfterPosX) <= 10:
+		#if abs(playerbeforePosY - playerAfterPosY) >= 20:
 			return True
 
 	return False
@@ -116,7 +120,7 @@ if (__name__ == '__main__'):
 	color = np.random.randint(0,255,(100,3))
 
 	#need to be filled in; use this to check the player position
-	playerPos = np.float32(np.array([[[101, 66]],[[172, 57]], [[209, 79]],[[506, 197]]]))
+	playerPos = np.float32(np.array([[[98, 63]],[[174.5, 60]], [[208, 99.5]],[[487.5, 207.5]]]))
 
 	testTopViewList = []
 
@@ -124,6 +128,8 @@ if (__name__ == '__main__'):
 
 	cap = cv2.VideoCapture('beachVolleyball1.mov')
 	_, frame = cap.read()
+
+	frameCount = np.int(cap.get(cv.CV_CAP_PROP_FRAME_COUNT))
 
 	grayOld = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -141,9 +147,16 @@ if (__name__ == '__main__'):
 
 	testTopViewList.append(topViewArtNew.copy())
 	index = 0
-	jumpFlag = False
-	afterJumpCounter = 0
-	checkJumpWindowSize = 15
+	jumpFlag = [False] * 4
+	afterJumpCounter = [0] * 4
+	checkJumpWindow = 29
+	updateFutureFlag = [False] * 4
+
+
+	homoMatrixList = []
+	frameList = []
+	homoMatrixList.append(homoMatrix.copy())
+	frameList.append(grayOld.copy())
 
 	while(_):
 		_, frame = cap.read()
@@ -155,31 +168,50 @@ if (__name__ == '__main__'):
 		playerNewPos, st1, err1 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, playerPos, None, **lk_params)
 		featureNewPts, st2, err2 = cv2.calcOpticalFlowPyrLK(grayOld, grayNew, featurePts, None, **lk_params)
 
+		playerNewPosCopy = playerNewPos.copy()
+
 		homoMatrix = findHomoMatrix(featureNewPts, mappedFeaturePts)
 
-		goodPlayerOld = playerPos[st1 == 1]
-		goodPlayerNew = playerNewPos[st1 == 1]
+		for playerIndex in range(0, 4):
+			if index >= checkJumpWindow and jumpFlag[playerIndex] == False and afterJumpCounter[playerIndex] >= checkJumpWindow:
+				jumpFlag[playerIndex] = checkJump(playerPosList[index - checkJumpWindow], playerPosList[index], playerIndex)
+				if jumpFlag[playerIndex] == True:
+					print 'player ' + str(playerIndex + 1) + ' jumps!!!'
+					playerNewPosCopy[playerIndex] = playerPosList[index - checkJumpWindow][playerIndex]
+					afterJumpCounter[playerIndex] = 0
+					jumpFlag[playerIndex] = False
+					updateFutureFlag[playerIndex] = True
 
-		if index >= checkJumpWindowSize and jumpFlag == False and afterJumpCounter>= checkJumpWindowSize:
-			jumpFlag = checkJump(playerPosList[index - checkJumpWindowSize], playerPosList[index])
-			if jumpFlag == True:
-				print 'JUMP!!!'
-				afterJumpCounter = 0
-				jumpFlag = False
+					for newPageIndex in range(0, checkJumpWindow):
+						playerPosList[index - 1 - newPageIndex][playerIndex] = playerPosList[index - 1 - checkJumpWindow][playerIndex]
 
-		topViewArtNew, mappedPlayerPos = topDownView(grayNew, homoMatrix, playerNewPos)
-		testTopViewList.append(topViewArtNew.copy())
-		playerPosList.append(playerNewPos.copy())
+		if True in updateFutureFlag:
+			for playerIndex in range(0, 4):
+				if updateFutureFlag[playerIndex] == True:
+					if afterJumpCounter[playerIndex] < checkJumpWindow:
+						playerNewPosCopy[playerIndex] = playerPosList[len(playerPosList) - checkJumpWindow][playerIndex]
+					else:
+						updateFutureFlag[playerIndex] = False
+
+		#topViewArtNew, mappedPlayerPos = topDownView(grayNew, homoMatrix, playerNewPos)
+		playerPosList.append(playerNewPosCopy.copy())
+		homoMatrixList.append(homoMatrix.copy())
+		frameList.append(grayOld)
 		grayOld = grayNew.copy()
 		playerPos = playerNewPos.copy()
 		featurePts = featureNewPts.copy()
 		index += 1
-		afterJumpCounter += 1
+		afterJumpCounter = [ele + 1 for ele in afterJumpCounter]
 
+
+	for frameIndex in range(0, frameCount):
+		topViewArtNew, mappedPlayerPos = topDownView(frameList[frameIndex], homoMatrixList[frameIndex], playerPosList[frameIndex])
+		testTopViewList.append(topViewArtNew)
 
 	height,width = topViewArtNew.shape[:2]
 	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
 	video = cv2.VideoWriter('panorama.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
+
 	for warp in testTopViewList:
 		video.write(warp)
 
