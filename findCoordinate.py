@@ -13,8 +13,8 @@ def checkJump(firstPlayerPosList, secondPlayerPosList, playerIndex):
 	playerBeforePosY = firstPlayerPosList[playerIndex][0][1]
 	playerAfterPosY = secondPlayerPosList[playerIndex][0][1]
 
-	if playerIndex < 3:
-		if playerBeforePosY - playerAfterPosY >= 10 and abs(playerBeforePosX - playerAfterPosX) <= 10:
+	if playerIndex < 2:
+		if playerBeforePosY - playerAfterPosY >= 14 and abs(playerBeforePosX - playerAfterPosX) <= 10:
 			return True
 	else:
 		if playerBeforePosY - playerAfterPosY >= 25 and abs(playerBeforePosX - playerAfterPosX) <= 10:
@@ -40,8 +40,10 @@ ret, old_frame = cap.read()
 old_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
 p0 = cv2.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
 #p0 = np.float32(np.array([[[133, 130]],[[111, 210]], [[297, 162]],[[536, 139]]])) # for topview.mov
-p0 = np.float32(np.array([[[98, 63]],[[174.5, 60]], [[208, 99.5]],[[487.5, 207.5]]]))
 #p0 = np.float32(np.array([[[293.5, 83]],[[355, 193]],[[172, 208]],[[46.5, 137]]]))
+
+#p0 = np.float32(np.array([[[98, 63]],[[174.5, 60]], [[208, 99.5]],[[487.5, 207.5]]]))
+p0 = np.float32(np.array([[[98, 63]],[[174.5, 60]], [[209, 80.5]],[[487.5, 207.5]]]))
 
 playerPosList = []
 playerPosList.append(p0.copy())

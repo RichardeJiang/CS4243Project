@@ -52,15 +52,6 @@ def smoothPlayerPosData(data):
 	player4X = smoothList([ele[3][0][0] for ele in data])
 	player4Y = smoothList([ele[3][0][1] for ele in data])
 
-	# player1X = savgol_filter(np.asarray([ele[0][0][0] for ele in data]),21,5)
-	# player1Y = savgol_filter(np.asarray([ele[0][0][1] for ele in data]),21,5)
-	# player2X = savgol_filter(np.asarray([ele[1][0][0] for ele in data]),21,5)
-	# player2Y = savgol_filter(np.asarray([ele[1][0][1] for ele in data]),21,5)
-	# player3X = savgol_filter(np.asarray([ele[2][0][0] for ele in data]),21,5)
-	# player3Y = savgol_filter(np.asarray([ele[2][0][1] for ele in data]),21,5)
-	# player4X = savgol_filter(np.asarray([ele[3][0][0] for ele in data]),21,5)
-	# player4Y = savgol_filter(np.asarray([ele[3][0][1] for ele in data]),21,5)
-
 	player1X = [player1X[0]] * (len(data) - len(player1X)) + player1X
 	player1Y = [player1Y[0]] * (len(data) - len(player1Y)) + player1Y
 	player2X = [player2X[0]] * (len(data) - len(player2X)) + player2X
@@ -81,9 +72,6 @@ def smoothPlayerPosData(data):
 		data[index][3][0][1] = player4Y[index]
 
 	return data
-
-# def smoothPlayerPosData(data):
-# 	return savgol_filter(data)
 
 def findHomoMatrixTopDown(cornerPts):
 	# if having corners points, then do:
@@ -129,16 +117,11 @@ def findFeaturePtsMapping(cornerPts, featurePts):
 
 def topDownView(image, homoMatrix, playerPts):
 	# assume that the first 2 players are in one team, and the rest in another
-	#image = cv2.imread('test.jpg')
 	topViewArt = cv2.imread('court.jpg')
-
-	maxWidth = 470-72
-	maxHeight = 258-60
 
 	# the diff between getPerspectiveTransform and findHomography is:
 	# findHomography is more rigorous, meaning if the point is not so 'good',
 	# it will be discarded
-	warped = cv2.warpPerspective(image, homoMatrix, (maxWidth, maxHeight))
 
 	mappedPlayerPos = []
 	index = 0
@@ -154,13 +137,12 @@ def topDownView(image, homoMatrix, playerPts):
 		newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
 		newPos = newPos[:2]
 		if index < 2:
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (0, 0, 0), -1)
+			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
 		else:
+			# cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
 			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
 		mappedPlayerPos.append(newPos)
 		index += 1
-
-	#mappedPlayerPos = np.asarray(mappedPlayerPos)
 
 	return topViewArt, mappedPlayerPos
 
@@ -292,7 +274,8 @@ if (__name__ == '__main__'):
 		index += 1
 		afterJumpCounter = [ele + 1 for ele in afterJumpCounter]
 
-	playerPosList = smoothPlayerPosData(playerPosList)
+	#playerPosList = smoothPlayerPosData(playerPosList)
+	#playerPosList = smoothPlayerPosData(playerPosList)
 
 	for frameIndex in range(0, frameCount):
 		topViewArtNew, mappedPlayerPos = topDownView(frameList[frameIndex], homoMatrixList[frameIndex], playerPosList[frameIndex])
