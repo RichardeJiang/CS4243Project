@@ -4,25 +4,22 @@ import cv2.cv as cv
 from matplotlib import pyplot as plt
 
 
-def checkJump(firstPlayerPosList, secondPlayerPosList):
+def checkJump(firstPlayerPosList, secondPlayerPosList, playerIndex):
 	# the initial idea to check jumping is to see every 20 frames
 	# if the offset in y direction is above a certain threshold and in x direction is below a threshold, 
 	# consider it as a jump
-	for index in range(0, 4):
-		playerBeforePosX = firstPlayerPosList[index][0][0]
-		playerAfterPosX = secondPlayerPosList[index][0][0]
-		playerbeforePosY = firstPlayerPosList[index][0][1]
-		playerAfterPosY = secondPlayerPosList[index][0][1]
+	playerBeforePosX = firstPlayerPosList[playerIndex][0][0]
+	playerAfterPosX = secondPlayerPosList[playerIndex][0][0]
+	playerBeforePosY = firstPlayerPosList[playerIndex][0][1]
+	playerAfterPosY = secondPlayerPosList[playerIndex][0][1]
 
-		if index < 2:
-			if abs(playerbeforePosY - playerAfterPosY) >= 15 and abs(playerBeforePosX - playerAfterPosX) <= 10:
-				print index + 1
-				return True
-		else:
-			if abs(playerbeforePosY - playerAfterPosY) >= 20 and abs(playerBeforePosX - playerAfterPosX) <= 10:
-				print index + 1
-			#if abs(playerbeforePosY - playerAfterPosY) >= 20:
-				return True
+	if playerIndex < 3:
+		if abs(playerBeforePosY - playerAfterPosY) >= 12 and abs(playerBeforePosX - playerAfterPosX) <= 15:
+			return True
+	else:
+		if abs(playerBeforePosY - playerAfterPosY) >= 25 and abs(playerBeforePosX - playerAfterPosX) <= 15:
+		#if abs(playerbeforePosY - playerAfterPosY) >= 20:
+			return True
 
 	return False
 
@@ -50,9 +47,9 @@ playerPosList = []
 playerPosList.append(p0.copy())
 
 index = 0
-jumpFlag = False
-afterJumpCounter = 0
-checkJumpWindow = 25
+jumpFlag = [False] * 4
+afterJumpCounter = [0] * 4
+checkJumpWindow = 28
 
 print p0
 
@@ -69,12 +66,13 @@ while(ret):
 	good_new = p1[st==1]
 	good_old = p0[st==1]
 
-	if index >= checkJumpWindow and jumpFlag == False and afterJumpCounter>= checkJumpWindow:
-		jumpFlag = checkJump(playerPosList[index - checkJumpWindow], playerPosList[index])
-		if jumpFlag == True:
-			print 'JUMP!!!'
-			afterJumpCounter = 0
-			jumpFlag = False
+	for playerIndex in range(0, 4):
+		if index >= checkJumpWindow and jumpFlag[playerIndex] == False and afterJumpCounter[playerIndex] >= checkJumpWindow:
+			jumpFlag[playerIndex] = checkJump(playerPosList[index - checkJumpWindow], playerPosList[index], playerIndex)
+			if jumpFlag[playerIndex] == True:
+				print 'player ' + str(playerIndex + 1) + ' jumps!!!'
+				afterJumpCounter[playerIndex] = 0
+				jumpFlag[playerIndex] = False
 
 	for i, (new, old) in enumerate(zip(good_new, good_old)):
 		a, b = new.ravel()
@@ -93,7 +91,7 @@ while(ret):
 
 	playerPosList.append(p1.copy())
 	index += 1
-	afterJumpCounter += 1
+	afterJumpCounter = [ele + 1 for ele in afterJumpCounter]
 
 cv2.destroyAllWindows()
 cap.release()
