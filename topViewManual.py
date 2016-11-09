@@ -155,7 +155,7 @@ if (__name__ == '__main__'):
 	#need to be filled in; use this to check the player position
 
 	testTopViewList = []
-	playerPosList = [[[[0, 0]],[[0, 0]],[[0, 0]],[[0, 0]]]]
+	playerPosList = [[[0, 0],[0, 0],[0, 0],[0, 0]]]
 	homoMatrixList = []
 	frameList = []
 
@@ -184,8 +184,6 @@ if (__name__ == '__main__'):
 			[[354., 69.]],[[230.,43.]]]))	
 		
 		homoMatrix = findHomoMatrixTopDown(cornerPts)
-
-		testTopViewList.append(topViewArtNew.copy())
 
 		curr = cornerPts
 
@@ -251,14 +249,13 @@ if (__name__ == '__main__'):
 			playerPosList = playerPosList * listActualSize
 
 		for mouseListIndex in range(0, listActualSize):
-			playerPosList[mouseListIndex][iterateIndex][0] = mouselist[mouseListIndex]
+			playerPosList[mouseListIndex][iterateIndex] = mouselist[mouseListIndex]
 
 		jumplistTotal.append(list(jumplist))
 		touchlistTotal.append(list(touchlist))
 
 		cap.release()
 
-	#playerPosList = smoothPlayerPosData(playerPosList)
 	#playerPosList = smoothPlayerPosData(playerPosList)
 
 	frameCount = frameCountCopy
