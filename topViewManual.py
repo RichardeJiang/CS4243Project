@@ -70,7 +70,7 @@ def findHomographyMatrix(src_pts, dst_pts):
 		homographyMatrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 		return homographyMatrix
 
-def topDownView(image, homoMatrix, playerPts):
+def topDownView(homoMatrix, playerList, touchList, frameIndex):
 	# assume that the first 2 players are in one team, and the rest in another
 	topViewArt = cv2.imread('court.jpg')
 
@@ -79,27 +79,62 @@ def topDownView(image, homoMatrix, playerPts):
 	# it will be discarded
 
 	mappedPlayerPos = []
+
+
 	index = 0
+
 	for pts in playerPts:
 		temp = pts[0].tolist()
-		if index < 3:
-			temp[1] += 20
-		else:
-			temp[1] += 45
+		# if index < 3:
+		# 	temp[1] += 20
+		# else:
+		# 	temp[1] += 45
 		temp.append(1)
 		pts = np.asarray(temp)
 		newPos = homoMatrix.dot(pts).tolist()
 		newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
 		newPos = newPos[:2]
 		if index < 2:
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
+			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 0, 0), -1)
 		else:
 			# cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
+			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (0, 0, 255), -1)
 		mappedPlayerPos.append(newPos)
 		index += 1
 
 	return topViewArt, mappedPlayerPos
+
+def mapRawPtsToAnime(playerPosList, touchlistTotal, homoMatrixList):
+	count = len(homoMatrixList)
+	mappedPlayerPosList = list(playerPosList)
+	mappedTouchList = list(touchlistTotal)
+
+	for playerIndex in range(0, 4):
+
+		playerHitFrameList = []
+		for playerHit in touchlistTotal[playerIndex]: # len(touchlistTotal[playerIndex])
+			playerHitFrameList.append(playerHit[0])
+
+		for frameIndex in range(0, count):
+			homoMatrix = homoMatrixList[frameIndex]
+
+			def mapPts(originPts):
+				originPts.append(1)
+				pts = np.asarray(originPts)
+				newPos = homoMatrix.dot(pts).tolist()
+				newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
+				newPos = newPos[:2]
+				return newPos
+
+			if frameIndex in playerHitFrameList:
+				temp1 = touchlistTotal[playerIndex][playerHitFrameList.index(frameIndex)][1:]
+				mappedTouchList[playerIndex][playerHitFrameList.index(frameIndex)][1:] = mapPts(temp1)
+
+			temp = playerPosList[playerIndex][frameIndex]
+
+			mappedPlayerPosList[playerIndex][frameIndex] = mapPts(temp)
+
+	return mappedPlayerPosList, mappedTouchList
 
 def on_mouse(event,x,y,flag,params):
 	global ready
@@ -154,8 +189,9 @@ if (__name__ == '__main__'):
 
 	#need to be filled in; use this to check the player position
 
-	testTopViewList = []
-	playerPosList = [[[0, 0],[0, 0],[0, 0],[0, 0]]]
+	topViewArt = cv2.imread('court.jpg')
+
+	playerPosList = []
 	homoMatrixList = []
 	frameList = []
 
@@ -246,10 +282,12 @@ if (__name__ == '__main__'):
 		if iterateIndex == 0:
 			listActualSize = len(mouselist)
 			frameCountCopy = listActualSize
-			playerPosList = playerPosList * listActualSize
+		# 	playerPosList = playerPosList * listActualSize
 
-		for mouseListIndex in range(0, listActualSize):
-			playerPosList[mouseListIndex][iterateIndex] = mouselist[mouseListIndex]
+		# for mouseListIndex in range(0, listActualSize):
+		# 	playerPosList[mouseListIndex][iterateIndex] = mouselist[mouseListIndex]
+
+		playerPosList.append(list(mouselist))
 
 		jumplistTotal.append(list(jumplist))
 		touchlistTotal.append(list(touchlist))
@@ -260,9 +298,14 @@ if (__name__ == '__main__'):
 
 	frameCount = frameCountCopy
 
+	testTopViewList = []
+	mappedPlayerPosList, mappedTouchList = mapRawPtsToAnime(playerPosList, touchlistTotal, homoMatrixList)
+
 	for frameIndex in range(0, frameCount):
-		topViewArtNew, mappedPlayerPos = topDownView(frameList[frameIndex], homoMatrixList[frameIndex], playerPosList[frameIndex])
+		topViewArtNew, mappedPlayerPos = topDownView(homoMatrixList[frameIndex], 
+			playerPosList, touchlistTotal, frameIndex)
 		testTopViewList.append(topViewArtNew)
+		mappedPlayerPosList.append(mappedPlayerPos)
 
 	height,width = topViewArtNew.shape[:2]
 	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
