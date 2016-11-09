@@ -3,6 +3,49 @@ import cv2.cv as cv
 import numpy as np
 from math import factorial
 from scipy.signal import savgol_filter
+import numpy.linalg as la
+
+topViewArtOriginal = cv2.imread('court.jpg')
+dashBoardOriginal = cv2.imread('dashBoard.jpg')
+distDisplayList = [(480, 428), (480, 816), (1304, 428), (1304, 816)]
+jumpDisplayList = [(420, 559), (420, 961), (1244, 559), (1244, 961)]
+fontFace = cv2.FONT_HERSHEY_SIMPLEX
+
+def calculatePlayerDistancePerFrame(oldFramePos, newFramePos):
+	normalValue = 8.0 / 200
+	distance = normalValue * la.norm(np.asarray(oldFramePos) - np.asarray(newFramePos))
+	return distance
+
+def generateBoardFrame(mappedPlayerPosList, jumpList, frameIndex, cumulatedDistances, cumulatedJumps): 
+	dashBoard = dashBoardOriginal.copy()
+	for i in range(4):
+		if len(jumpList[i]) > 0 and jumpList[i][0][0] == frameIndex:
+			cumulatedJumps[i] += 1
+			jumpList[i].pop(0)
+		if frameIndex == 0:
+			cumulatedDistances[i] += calculatePlayerDistancePerFrame(mappedPlayerPosList[i][0], mappedPlayerPosList[i][0])
+		else:
+			cumulatedDistances[i] += calculatePlayerDistancePerFrame(mappedPlayerPosList[i][frameIndex-1], mappedPlayerPosList[i][frameIndex]) 	
+	
+	for i in range(0, 4):
+		color = (0,0,255)
+		if i > 1: 
+			color = (255, 0, 0)
+		cv2.putText(dashBoard, str("{0:.1f}".format(cumulatedDistances[i])) + ' m', 
+			distDisplayList[i], fontFace, 2.5, color, 4)
+		cv2.putText(dashBoard, str(int(cumulatedJumps[i])), 
+			jumpDisplayList[i], fontFace, 2.5, color, 4)
+
+	return dashBoard
+
+def limitRegion(pos, player):
+	if player == 0 or player == 1:
+		if int(pos[0]) > 270:
+			pos[0] = 270
+	else:
+		if int(pos[0]) < 270:
+			pos[0] = 270
+	return pos
 
 def smoothList(list,strippedXs=False,degree=20):  
 
@@ -70,71 +113,148 @@ def findHomographyMatrix(src_pts, dst_pts):
 		homographyMatrix, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 		return homographyMatrix
 
-def topDownView(homoMatrix, playerList, touchList, frameIndex):
+def topDownView(mappedPlayerPosList, mappedBallPosList, frameIndex):
 	# assume that the first 2 players are in one team, and the rest in another
-	topViewArt = cv2.imread('court.jpg')
+	topViewArt = topViewArtOriginal.copy()
 
 	# the diff between getPerspectiveTransform and findHomography is:
 	# findHomography is more rigorous, meaning if the point is not so 'good',
 	# it will be discarded
 
-	mappedPlayerPos = []
-
-
-	index = 0
-
-	for pts in playerPts:
-		temp = pts[0].tolist()
-		# if index < 3:
-		# 	temp[1] += 20
-		# else:
-		# 	temp[1] += 45
-		temp.append(1)
-		pts = np.asarray(temp)
-		newPos = homoMatrix.dot(pts).tolist()
-		newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
-		newPos = newPos[:2]
+	for index in range(0, 4):
+		x = int(mappedPlayerPosList[index][frameIndex][0])
+		y = int(mappedPlayerPosList[index][frameIndex][1])
+		
 		if index < 2:
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 0, 0), -1)
+			cv2.circle(topViewArt, (x, y), 8, (255, 0, 0), -1)
 		else:
-			# cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (255, 255, 255), -1)
-			cv2.circle(topViewArt, (newPos[0], newPos[1]), 8, (0, 0, 255), -1)
-		mappedPlayerPos.append(newPos)
-		index += 1
+			cv2.circle(topViewArt, (x, y), 8, (0, 0, 255), -1)
 
-	return topViewArt, mappedPlayerPos
+	ballX = int(mappedBallPosList[frameIndex][0])
+	ballY = int(mappedBallPosList[frameIndex][1])
 
-def mapRawPtsToAnime(playerPosList, touchlistTotal, homoMatrixList):
-	count = len(homoMatrixList)
+	cv2.circle(topViewArt, (ballX, ballY), 4, (0, 0, 0), -1)
+
+	return topViewArt
+
+def computeBallPosList(mappedPlayerPosList, mappedTouchList, mappedLastBallPtsList, frameCount):
+	playerHitList = []
+	for playerIndex in range(0, 4):
+		for ele in mappedTouchList[playerIndex]:
+			ele.insert(1, playerIndex)
+			playerHitList.append(list(ele))
+
+	playerHitList.sort(key=lambda x: x[0])
+
+	mappedBallPosList = [[0, 0]] * frameCount
+	for playerHit in playerHitList:
+		mappedBallPosList[playerHit[0]] = list(playerHit[2:])
+	for index in range(0, len(playerHitList)):
+		if index == 0:
+			playerIndex = playerHitList[0][1]
+			for frame in range(0, playerHitList[0][0] - 1):
+				#mappedBallPosList[frame] = list(playerHitList[0][2:])
+				mappedBallPosList[frame] = list(mappedPlayerPosList[playerIndex][frame])
+		else:
+			xOffset = playerHitList[index][2] - playerHitList[index-1][2]
+			yOffset = playerHitList[index][3] - playerHitList[index-1][3]
+			numOfFramesBetween = playerHitList[index][0] - playerHitList[index-1][0]
+			xChangeUnit = xOffset / float(numOfFramesBetween)
+			yChangeUnit = yOffset / float(numOfFramesBetween)
+			for frame in range(playerHitList[index-1][0]+1, playerHitList[index][0]):
+				newX = playerHitList[index-1][2] + xChangeUnit * (frame - playerHitList[index-1][0])
+				newY = playerHitList[index-1][3] + yChangeUnit * (frame - playerHitList[index-1][0])
+				mappedBallPosList[frame] = [newX, newY]
+
+	beforeLastFrame = playerHitList[-1][0]
+	xOffsetLastBall = mappedLastBallPtsList[0][0][1] - playerHitList[-1][2]
+	yOffsetLastBall = mappedLastBallPtsList[0][0][2] - playerHitList[-1][3]
+	lastFrame = mappedLastBallPtsList[0][0][0]
+	numOfFrames = lastFrame - beforeLastFrame
+	xChangeUnitLast = xOffsetLastBall / float(numOfFrames)
+	yChangeUnitLast = yOffsetLastBall / float(numOfFrames)
+
+	for frame in range(playerHitList[-1][0] + 1, len(mappedBallPosList)):
+		newXLast = playerHitList[-1][2] + xChangeUnitLast * (frame - playerHitList[-1][0])
+		newYLast = playerHitList[-1][3] + yChangeUnitLast * (frame - playerHitList[-1][0])
+		mappedBallPosList[frame] = [newXLast, newYLast]
+
+	return mappedBallPosList
+
+def mapPts(originPts, homoMatrix):
+	originPts.append(1)
+	pts = np.asarray(originPts)
+	newPos = homoMatrix.dot(pts).tolist()
+	newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
+	newPos = newPos[:2]
+	return newPos
+
+def mapRawPtsToAnime(playerPosList, touchlistTotal, jumplistTotal, lastBallPtsList, homoMatrixList):
+	count = min(len(homoMatrixList), len(playerPosList[0]))
 	mappedPlayerPosList = list(playerPosList)
 	mappedTouchList = list(touchlistTotal)
+	mappedJumpList = list(jumplistTotal)
+	mappedLastBallPtsList = list(lastBallPtsList)
+	lastactive = []
 
-	for playerIndex in range(0, 4):
+	for lastBallPts in lastBallPtsList:
+		frameIndex = lastBallPts[0][0]
+		homoMatrix = homoMatrixList[frameIndex]
+		temp2 = lastBallPts[0][1:]
+		mappedLastBallPtsList[lastBallPtsList.index(lastBallPts)][0][1:] = mapPts(list(temp2), homoMatrix)
 
-		playerHitFrameList = []
-		for playerHit in touchlistTotal[playerIndex]: # len(touchlistTotal[playerIndex])
-			playerHitFrameList.append(playerHit[0])
+	for playerIndex in range(4):
+		for i in range(len(mappedTouchList[playerIndex])):
+			homoMatrix = homoMatrixList[touchlistTotal[playerIndex][i][0]]
+			temp = touchlistTotal[playerIndex][i][1:]
+			mappedTouchList[playerIndex][i][1:] = cv2.perspectiveTransform(np.float32(np.asarray([[temp]])), homoMatrix).tolist()[0][0]
 
-		for frameIndex in range(0, count):
+		for i in range(len(mappedJumpList[playerIndex])):
+			homoMatrix = homoMatrixList[jumplistTotal[playerIndex][i][0]]
+			temp = jumplistTotal[playerIndex][i][1:]
+			mappedJumpList[playerIndex][i][1:] = cv2.perspectiveTransform(np.float32(np.asarray([[temp]])), homoMatrix).tolist()[0][0]
+
+		for frameIndex in range(count):
 			homoMatrix = homoMatrixList[frameIndex]
-
-			def mapPts(originPts):
-				originPts.append(1)
-				pts = np.asarray(originPts)
-				newPos = homoMatrix.dot(pts).tolist()
-				newPos = [np.int(ele/np.float(newPos[2])) for ele in newPos]
-				newPos = newPos[:2]
-				return newPos
-
-			if frameIndex in playerHitFrameList:
-				temp1 = touchlistTotal[playerIndex][playerHitFrameList.index(frameIndex)][1:]
-				mappedTouchList[playerIndex][playerHitFrameList.index(frameIndex)][1:] = mapPts(temp1)
-
 			temp = playerPosList[playerIndex][frameIndex]
+			if temp[0] == -1: #out of view
+				if lastactive == []:
+					lastactive = playerPosList[playerIndex][frameIndex-1]
+				temp = lastactive
+			else:
+				if lastactive != []:
+					lastactive = []
+			mappedPlayerPosList[playerIndex][frameIndex] = limitRegion(cv2.perspectiveTransform(np.float32(np.asarray([[temp]])), homoMatrix).tolist()[0][0], playerIndex)
+			mappedPlayerPosList[playerIndex][frameIndex]
 
-			mappedPlayerPosList[playerIndex][frameIndex] = mapPts(temp)
+	# original implementation
 
-	return mappedPlayerPosList, mappedTouchList
+	# for playerIndex in range(0, 4):
+
+	# 	playerHitFrameList = []
+	# 	for playerHit in touchlistTotal[playerIndex]: # len(touchlistTotal[playerIndex])
+	# 		playerHitFrameList.append(playerHit[0])
+
+	# 	for frameIndex in range(0, count):
+	# 		homoMatrix = homoMatrixList[frameIndex]
+
+	# 		if frameIndex in playerHitFrameList:
+	# 			temp1 = touchlistTotal[playerIndex][playerHitFrameList.index(frameIndex)][1:]
+	# 			mappedTouchList[playerIndex][playerHitFrameList.index(frameIndex)][1:] = mapPts(list(temp1), homoMatrix)
+
+	# 		temp = playerPosList[playerIndex][frameIndex]
+	# 		print 'now temp is: ', temp
+
+	# 		if temp == [-1, -1]:
+	# 			for i in range(1, frameIndex):
+	# 				temp = playerPosList[playerIndex][frameIndex - i]
+	# 				if (temp != [-1, -1]):
+	# 					break
+	# 		print 'temp is: ', temp
+	# 		mappedPlayerPosList[playerIndex][frameIndex] = mapPts(list(temp), homoMatrix)
+
+
+	return mappedPlayerPosList, mappedTouchList, mappedJumpList, mappedLastBallPtsList
 
 def on_mouse(event,x,y,flag,params):
 	global ready
@@ -142,8 +262,8 @@ def on_mouse(event,x,y,flag,params):
 	global halted
 	global initpos
 	if event == cv2.EVENT_RBUTTONDOWN:
-		print count,x,y
-		touchlist.append([count,x,y])
+		print index,x,y
+		touchlist.append([index,x,y])
 		print 'touched!'
 	if event == cv2.EVENT_LBUTTONDOWN:
 		if not ready:
@@ -152,13 +272,15 @@ def on_mouse(event,x,y,flag,params):
 			print 'clicked!'
 			ready = True
 		else:
-			print count,x,y
-			jumplist.append([count,x,y])
+			print index,x,y
+			jumplist.append([index,x,y])
 			print 'jumped!'
 	if event == cv2.EVENT_MBUTTONDOWN:
 		#out of screen
 		halted = not halted
 		print 'halted: ' + str(halted)
+	if flag == (cv2.EVENT_FLAG_SHIFTKEY + cv2.EVENT_LBUTTONDOWN):
+		lastBallPts.append([index,x,y])
 	#if event == cv2.EVENT_MOUSEMOVE:
 	if ready and not saved:
 		saved = True
@@ -198,10 +320,11 @@ if (__name__ == '__main__'):
 	mouselist = []
 	jumplistTotal = []
 	touchlistTotal = []
+	lastBallPtsList = []
 
 	frameCountCopy = 0
 
-	for iterateIndex in range(0, 4):
+	for iterateIndex in range(0, 5):
 
 		#playerPos = np.float32(np.array([[[98, 63]],[[174.5, 60]], [[208, 99.5]],[[487.5, 207.5]]]))
 
@@ -223,7 +346,8 @@ if (__name__ == '__main__'):
 
 		curr = cornerPts
 
-		homoMatrixList.append(homoMatrix.copy())
+		if iterateIndex == 0:
+			homoMatrixList.append(homoMatrix.copy())
 		frameList.append(grayOld.copy())
 
 		index = 0
@@ -237,6 +361,7 @@ if (__name__ == '__main__'):
 		halted = False
 		lastsave = [-1,-1]
 		initpos = []
+		lastBallPts = []
 
 		cv2.namedWindow('frame')
 		cv2.setMouseCallback('frame', on_mouse)
@@ -257,7 +382,7 @@ if (__name__ == '__main__'):
 			if len(mouselist) > 0:
 				lastsave = mouselist[-1]
 			cv2.imshow('frame',frame)
-			k = cv2.waitKey(50) & 0xff
+			k = cv2.waitKey(10) & 0xff
 			if k == 27:
 				break
 			# Now update the previous frame and previous points
@@ -287,10 +412,14 @@ if (__name__ == '__main__'):
 		# for mouseListIndex in range(0, listActualSize):
 		# 	playerPosList[mouseListIndex][iterateIndex] = mouselist[mouseListIndex]
 
-		playerPosList.append(list(mouselist))
+		if iterateIndex != 4:
+			playerPosList.append(list(mouselist))
 
-		jumplistTotal.append(list(jumplist))
-		touchlistTotal.append(list(touchlist))
+			jumplistTotal.append(list(jumplist))
+			touchlistTotal.append(list(touchlist))
+
+		else:
+			lastBallPtsList.append(list(lastBallPts))
 
 		cap.release()
 
@@ -298,21 +427,39 @@ if (__name__ == '__main__'):
 
 	frameCount = frameCountCopy
 
+	print np.asarray(playerPosList)
+
 	testTopViewList = []
-	mappedPlayerPosList, mappedTouchList = mapRawPtsToAnime(playerPosList, touchlistTotal, homoMatrixList)
+	mappedPlayerPosList, mappedTouchList, mappedJumpList, mappedLastBallPtsList = mapRawPtsToAnime(playerPosList, 
+		touchlistTotal, jumplistTotal, lastBallPtsList, homoMatrixList)
+
+	mappedBallPosList = computeBallPosList(mappedPlayerPosList, mappedTouchList, mappedLastBallPtsList, frameCount)
+
+	while(len(mappedBallPosList) < len(mappedPlayerPosList)):
+		mappedBallPosList.append(mappedBallPosList[-1])
+
+	frameCount = min(len(mappedPlayerPosList[0]), len(mappedBallPosList))
+	boardViewList = []
+	cumulatedDistances = [0.,0.,0.,0.]
+	cumulatedJumps = [0,0,0,0]
 
 	for frameIndex in range(0, frameCount):
-		topViewArtNew, mappedPlayerPos = topDownView(homoMatrixList[frameIndex], 
-			playerPosList, touchlistTotal, frameIndex)
+		topViewArtNew = topDownView(mappedPlayerPosList, mappedBallPosList, frameIndex)
 		testTopViewList.append(topViewArtNew)
-		mappedPlayerPosList.append(mappedPlayerPos)
+		boardViewNew = generateBoardFrame(mappedPlayerPosList, mappedJumpList, frameIndex, cumulatedDistances, cumulatedJumps)
+		boardViewList.append(boardViewNew)
 
-	height,width = topViewArtNew.shape[:2]
+	heightTopdown,widthTopdown = topViewArtNew.shape[:2]
+	heightBoard, widthBoard = boardViewNew.shape[:2]
 	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
-	video = cv2.VideoWriter('panorama.mov',fourcc,fps=59,frameSize=(width,height),isColor=1)
+	tdvideo = cv2.VideoWriter('topdown.mov',fourcc,fps=59,frameSize=(widthTopdown,heightTopdown),isColor=1)
+	stvideo = cv2.VideoWriter('stats.mov',fourcc,fps=59,frameSize=(widthBoard,heightBoard),isColor=1)
 
-	for warp in testTopViewList:
-		video.write(warp)
+	for frame in testTopViewList:
+		tdvideo.write(frame)
+
+	for frame in boardViewList:
+		stvideo.write(frame)
 
 	cv2.destroyAllWindows()
 	cap.release()
