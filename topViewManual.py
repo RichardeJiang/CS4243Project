@@ -59,24 +59,56 @@ def smoothList(list,strippedXs=False,degree=20):
 
 	return smoothed
 
-def smoothPlayerPosData(data):
-	player1X = smoothList([ele[0] for ele in data[0]])
-	player1Y = smoothList([ele[1] for ele in data[0]])
-	player2X = smoothList([ele[0] for ele in data[1]])
-	player2Y = smoothList([ele[1] for ele in data[1]])
-	player3X = smoothList([ele[0] for ele in data[2]])
-	player3Y = smoothList([ele[1] for ele in data[2]])
-	player4X = smoothList([ele[0] for ele in data[3]])
-	player4Y = smoothList([ele[1] for ele in data[3]])
+def savitzky_golay(y, window_size, order, deriv=0, rate=1):
 
-	player1X = [player1X[0]] * (len(data[0]) - len(player1X)) + player1X
-	player1Y = [player1Y[0]] * (len(data[0]) - len(player1Y)) + player1Y
-	player2X = [player2X[0]] * (len(data[1]) - len(player2X)) + player2X
-	player2Y = [player2Y[0]] * (len(data[1]) - len(player2Y)) + player2Y
-	player3X = [player3X[0]] * (len(data[2]) - len(player3X)) + player3X
-	player3Y = [player3Y[0]] * (len(data[2]) - len(player3Y)) + player3Y
-	player4X = [player4X[0]] * (len(data[3]) - len(player4X)) + player4X
-	player4Y = [player4Y[0]] * (len(data[3]) - len(player4Y)) + player4Y
+	try:
+		window_size = np.abs(np.int(window_size))
+		order = np.abs(np.int(order))
+	except ValueError, msg:
+		raise ValueError("window_size and order have to be of type int")
+	if window_size % 2 != 1 or window_size < 1:
+		raise TypeError("window_size size must be a positive odd number")
+	if window_size < order + 2:
+		raise TypeError("window_size is too small for the polynomials order")
+	order_range = range(order+1)
+	half_window = (window_size -1) // 2
+	# precompute coefficients
+	b = np.mat([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
+	m = np.linalg.pinv(b).A[deriv] * rate**deriv * factorial(deriv)
+	# pad the signal at the extremes with
+	# values taken from the signal itself
+	firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
+	lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
+	y = np.concatenate((firstvals, y, lastvals))
+	return np.convolve( m[::-1], y, mode='valid')
+
+def smoothPlayerPosData(data):
+	# player1X = smoothList([ele[0] for ele in data[0]])
+	# player1Y = smoothList([ele[1] for ele in data[0]])
+	# player2X = smoothList([ele[0] for ele in data[1]])
+	# player2Y = smoothList([ele[1] for ele in data[1]])
+	# player3X = smoothList([ele[0] for ele in data[2]])
+	# player3Y = smoothList([ele[1] for ele in data[2]])
+	# player4X = smoothList([ele[0] for ele in data[3]])
+	# player4Y = smoothList([ele[1] for ele in data[3]])
+
+	player1X = savitzky_golay(np.asarray([ele[0] for ele in data[0]]), 51, 3)
+	player1Y = savitzky_golay(np.asarray([ele[1] for ele in data[0]]), 51, 3)
+	player2X = savitzky_golay(np.asarray([ele[0] for ele in data[1]]), 51, 3)
+	player2Y = savitzky_golay(np.asarray([ele[1] for ele in data[1]]), 51, 3)
+	player3X = savitzky_golay(np.asarray([ele[0] for ele in data[2]]), 51, 3)
+	player3Y = savitzky_golay(np.asarray([ele[1] for ele in data[2]]), 51, 3)
+	player4X = savitzky_golay(np.asarray([ele[0] for ele in data[3]]), 51, 3)
+	player4Y = savitzky_golay(np.asarray([ele[1] for ele in data[3]]), 51, 3)
+
+	# player1X = [player1X[0]] * (len(data[0]) - len(player1X)) + player1X
+	# player1Y = [player1Y[0]] * (len(data[0]) - len(player1Y)) + player1Y
+	# player2X = [player2X[0]] * (len(data[1]) - len(player2X)) + player2X
+	# player2Y = [player2Y[0]] * (len(data[1]) - len(player2Y)) + player2Y
+	# player3X = [player3X[0]] * (len(data[2]) - len(player3X)) + player3X
+	# player3Y = [player3Y[0]] * (len(data[2]) - len(player3Y)) + player3Y
+	# player4X = [player4X[0]] * (len(data[3]) - len(player4X)) + player4X
+	# player4Y = [player4Y[0]] * (len(data[3]) - len(player4Y)) + player4Y
 
 	for index in range(0, len(data)):
 		data[0][index][0] = player1X[index]
@@ -440,7 +472,7 @@ if (__name__ == '__main__'):
 	frameCountSaveList = np.asarray([frameCount])
 
 	np.savetxt('outoutFile/mappedPlayerPosList.out', mappedPlayerPosList)
-	np.savetxt('outputFile/mappedBallPosList.out', mappedBallPosList)
+	np.savetxt('outputFile/mappedBallPosList.out', np.asarray(mappedBallPosList))
 	np.savetxt('outputFile/mappedJumpList.out', mappedJumpList)
 	np.savetxt('outputFile/mappedTouchList.out', mappedTouchList)
 	np.savetxt('outputFile/frameCount.out', frameCountSaveList)
