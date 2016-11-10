@@ -60,33 +60,33 @@ def smoothList(list,strippedXs=False,degree=20):
 	return smoothed
 
 def smoothPlayerPosData(data):
-	player1X = smoothList([ele[0][0][0] for ele in data])
-	player1Y = smoothList([ele[0][0][1] for ele in data])
-	player2X = smoothList([ele[1][0][0] for ele in data])
-	player2Y = smoothList([ele[1][0][1] for ele in data])
-	player3X = smoothList([ele[2][0][0] for ele in data])
-	player3Y = smoothList([ele[2][0][1] for ele in data])
-	player4X = smoothList([ele[3][0][0] for ele in data])
-	player4Y = smoothList([ele[3][0][1] for ele in data])
+	player1X = smoothList([ele[0] for ele in data[0]])
+	player1Y = smoothList([ele[1] for ele in data[0]])
+	player2X = smoothList([ele[0] for ele in data[1]])
+	player2Y = smoothList([ele[1] for ele in data[1]])
+	player3X = smoothList([ele[0] for ele in data[2]])
+	player3Y = smoothList([ele[1] for ele in data[2]])
+	player4X = smoothList([ele[0] for ele in data[3]])
+	player4Y = smoothList([ele[1] for ele in data[3]])
 
-	player1X = [player1X[0]] * (len(data) - len(player1X)) + player1X
-	player1Y = [player1Y[0]] * (len(data) - len(player1Y)) + player1Y
-	player2X = [player2X[0]] * (len(data) - len(player2X)) + player2X
-	player2Y = [player2Y[0]] * (len(data) - len(player2Y)) + player2Y
-	player3X = [player3X[0]] * (len(data) - len(player3X)) + player3X
-	player3Y = [player3Y[0]] * (len(data) - len(player3Y)) + player3Y
-	player4X = [player4X[0]] * (len(data) - len(player4X)) + player4X
-	player4Y = [player4Y[0]] * (len(data) - len(player4Y)) + player4Y
+	player1X = [player1X[0]] * (len(data[0]) - len(player1X)) + player1X
+	player1Y = [player1Y[0]] * (len(data[0]) - len(player1Y)) + player1Y
+	player2X = [player2X[0]] * (len(data[1]) - len(player2X)) + player2X
+	player2Y = [player2Y[0]] * (len(data[1]) - len(player2Y)) + player2Y
+	player3X = [player3X[0]] * (len(data[2]) - len(player3X)) + player3X
+	player3Y = [player3Y[0]] * (len(data[2]) - len(player3Y)) + player3Y
+	player4X = [player4X[0]] * (len(data[3]) - len(player4X)) + player4X
+	player4Y = [player4Y[0]] * (len(data[3]) - len(player4Y)) + player4Y
 
 	for index in range(0, len(data)):
-		data[index][0][0][0] = player1X[index]
-		data[index][0][0][1] = player1Y[index]
-		data[index][1][0][0] = player2X[index]
-		data[index][1][0][1] = player2Y[index]
-		data[index][2][0][0] = player3X[index]
-		data[index][2][0][1] = player3Y[index]
-		data[index][3][0][0] = player4X[index]
-		data[index][3][0][1] = player4Y[index]
+		data[0][index][0] = player1X[index]
+		data[0][index][1] = player1Y[index]
+		data[1][index][0] = player2X[index]
+		data[1][index][1] = player2Y[index]
+		data[2][index][0] = player3X[index]
+		data[2][index][1] = player3Y[index]
+		data[3][index][0] = player4X[index]
+		data[3][index][1] = player4Y[index]
 
 	return data
 
@@ -225,7 +225,6 @@ def mapRawPtsToAnime(playerPosList, touchlistTotal, jumplistTotal, lastBallPtsLi
 				if lastactive != []:
 					lastactive = []
 			mappedPlayerPosList[playerIndex][frameIndex] = limitRegion(cv2.perspectiveTransform(np.float32(np.asarray([[temp]])), homoMatrix).tolist()[0][0], playerIndex)
-			mappedPlayerPosList[playerIndex][frameIndex]
 
 	# original implementation
 
@@ -262,34 +261,28 @@ def on_mouse(event,x,y,flag,params):
 	global halted
 	global initpos
 	if event == cv2.EVENT_RBUTTONDOWN:
-		print index,x,y
 		touchlist.append([index,x,y])
-		print 'touched!'
 	if event == cv2.EVENT_LBUTTONDOWN:
-		if not ready:
-			print x,y
-			initpos = [x,y]
-			print 'clicked!'
-			ready = True
+		if lastPlay:
+			lastBallPts.append([index,x,y])
 		else:
-			print index,x,y
-			jumplist.append([index,x,y])
-			print 'jumped!'
+			if not ready:
+				initpos = [x,y]
+				ready = True
+			else:
+				jumplist.append([index,x,y])
 	if event == cv2.EVENT_MBUTTONDOWN:
 		#out of screen
 		halted = not halted
-		print 'halted: ' + str(halted)
-	if flag == (cv2.EVENT_FLAG_SHIFTKEY + cv2.EVENT_LBUTTONDOWN):
-		lastBallPts.append([index,x,y])
+	# if flag == (cv2.EVENT_FLAG_SHIFTKEY + cv2.EVENT_LBUTTONDOWN):
+	# 	lastBallPts.append([index,x,y])
 	#if event == cv2.EVENT_MOUSEMOVE:
 	if ready and not saved:
 		saved = True
 		if halted:
 			mouselist.append([-1,-1])
-			print -1,-1
 		else:
 			mouselist.append([x,y])	
-			print x,y	
 
 if (__name__ == '__main__'):
 
@@ -359,9 +352,13 @@ if (__name__ == '__main__'):
 		saved = False
 		ready = False
 		halted = False
+		lastPlay = False
 		lastsave = [-1,-1]
 		initpos = []
 		lastBallPts = []
+
+		if iterateIndex == 4:
+			lastPlay = True
 
 		cv2.namedWindow('frame')
 		cv2.setMouseCallback('frame', on_mouse)
@@ -378,7 +375,6 @@ if (__name__ == '__main__'):
 			#cv2.setMouseCallback('frame', on_mouse)
 			if len(mouselist) > 0 and mouselist[-1] == lastsave:
 				mouselist.append(lastsave)
-				print mouselist[-1]
 			if len(mouselist) > 0:
 				lastsave = mouselist[-1]
 			cv2.imshow('frame',frame)
@@ -423,11 +419,9 @@ if (__name__ == '__main__'):
 
 		cap.release()
 
-	#playerPosList = smoothPlayerPosData(playerPosList)
+	playerPosList = smoothPlayerPosData(list(playerPosList))
 
 	frameCount = frameCountCopy
-
-	print np.asarray(playerPosList)
 
 	testTopViewList = []
 	mappedPlayerPosList, mappedTouchList, mappedJumpList, mappedLastBallPtsList = mapRawPtsToAnime(playerPosList, 
@@ -443,6 +437,14 @@ if (__name__ == '__main__'):
 	cumulatedDistances = [0.,0.,0.,0.]
 	cumulatedJumps = [0,0,0,0]
 
+	frameCountSaveList = np.asarray([frameCount])
+
+	np.savetxt('outoutFile/mappedPlayerPosList.out', mappedPlayerPosList)
+	np.savetxt('outputFile/mappedBallPosList.out', mappedBallPosList)
+	np.savetxt('outputFile/mappedJumpList.out', mappedJumpList)
+	np.savetxt('outputFile/mappedTouchList.out', mappedTouchList)
+	np.savetxt('outputFile/frameCount.out', frameCountSaveList)
+
 	for frameIndex in range(0, frameCount):
 		topViewArtNew = topDownView(mappedPlayerPosList, mappedBallPosList, frameIndex)
 		testTopViewList.append(topViewArtNew)
@@ -452,8 +454,8 @@ if (__name__ == '__main__'):
 	heightTopdown,widthTopdown = topViewArtNew.shape[:2]
 	heightBoard, widthBoard = boardViewNew.shape[:2]
 	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v') # note the lower case
-	tdvideo = cv2.VideoWriter('topdown.mov',fourcc,fps=59,frameSize=(widthTopdown,heightTopdown),isColor=1)
-	stvideo = cv2.VideoWriter('stats.mov',fourcc,fps=59,frameSize=(widthBoard,heightBoard),isColor=1)
+	tdvideo = cv2.VideoWriter('outputVideo/topdown.mov',fourcc,fps=59,frameSize=(widthTopdown,heightTopdown),isColor=1)
+	stvideo = cv2.VideoWriter('outputVideo/stats.mov',fourcc,fps=59,frameSize=(widthBoard,heightBoard),isColor=1)
 
 	for frame in testTopViewList:
 		tdvideo.write(frame)
