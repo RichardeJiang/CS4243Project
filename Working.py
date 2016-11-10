@@ -1,10 +1,12 @@
 import cv2
+import cv2.cv as cv
 import numpy as np
 from math import factorial
 from scipy.signal import savgol_filter
+import scipy
 import numpy.linalg as la
 
-video = 1
+video = 0
 topViewArtOriginal = cv2.imread('court.jpg')
 dashBoardOriginal = cv2.imread('dashBoard.jpg')
 distDisplayList = [(480, 428), (480, 816), (1304, 428), (1304, 816)]
@@ -42,7 +44,7 @@ fpclist = [fpc1,fpc2,fpc3,fpc4,fpc5,fpc6,fpc7]
 explist = [0,0,0,876,1170,0,0]
 
 def calculatePlayerDistancePerFrame(oldFramePos, newFramePos):
-	normalValue = 8.0 / 200
+	normalValue = 8.0 / 600
 	distance = normalValue * la.norm(np.asarray(oldFramePos) - np.asarray(newFramePos))
 	return distance
 
@@ -77,7 +79,84 @@ def limitRegion(pos, player):
 			pos[0] = 270
 	return pos
 
-def smoothList(list,strippedXs=False,degree=50):  
+def sgolay2d ( z, window_size, order, derivative=None):
+	# number of terms in the polynomial expression
+	n_terms = ( order + 1 ) * ( order + 2)  / 2.0
+
+	if window_size % 2 == 0:
+		raise ValueError('window_size must be odd')
+
+	if window_size**2 < n_terms:
+		raise ValueError('order is too high for the window size')
+
+	half_size = window_size // 2
+
+	# exponents of the polynomial.
+	# p(x,y) = a0 + a1*x + a2*y + a3*x^2 + a4*y^2 + a5*x*y + ...
+	# this line gives a list of two item tuple. Each tuple contains
+	# the exponents of the k-th term. First element of tuple is for x
+	# second element for y.
+	# Ex. exps = [(0,0), (1,0), (0,1), (2,0), (1,1), (0,2), ...]
+	exps = [ (k-n, n) for k in range(order+1) for n in range(k+1) ]
+
+	# coordinates of points
+	ind = np.arange(-half_size, half_size+1, dtype=np.float64)
+	dx = np.repeat( ind, window_size )
+	dy = np.tile( ind, [window_size, 1]).reshape(window_size**2, )
+
+	# build matrix of system of equation
+	A = np.empty( (window_size**2, len(exps)) )
+	for i, exp in enumerate( exps ):
+		A[:,i] = (dx**exp[0]) * (dy**exp[1])
+
+	# pad input array with appropriate values at the four borders
+	new_shape = z.shape[0] + 2*half_size, z.shape[1] + 2*half_size
+	Z = np.zeros( (new_shape) )
+	# top band
+	band = z[0, :]
+	Z[:half_size, half_size:-half_size] =  band -  np.abs( np.flipud( z[1:half_size+1, :] ) - band )
+	# bottom band
+	band = z[-1, :]
+	Z[-half_size:, half_size:-half_size] = band  + np.abs( np.flipud( z[-half_size-1:-1, :] )  -band )
+	# left band
+	band = np.tile( z[:,0].reshape(-1,1), [1,half_size])
+	Z[half_size:-half_size, :half_size] = band - np.abs( np.fliplr( z[:, 1:half_size+1] ) - band )
+	# right band
+	band = np.tile( z[:,-1].reshape(-1,1), [1,half_size] )
+	Z[half_size:-half_size, -half_size:] =  band + np.abs( np.fliplr( z[:, -half_size-1:-1] ) - band )
+	# central band
+	Z[half_size:-half_size, half_size:-half_size] = z
+
+	# top left corner
+	band = z[0,0]
+	Z[:half_size,:half_size] = band - np.abs( np.flipud(np.fliplr(z[1:half_size+1,1:half_size+1]) ) - band )
+	# bottom right corner
+	band = z[-1,-1]
+	Z[-half_size:,-half_size:] = band + np.abs( np.flipud(np.fliplr(z[-half_size-1:-1,-half_size-1:-1]) ) - band )
+
+	# top right corner
+	band = Z[half_size,-half_size:]
+	Z[:half_size,-half_size:] = band - np.abs( np.flipud(Z[half_size+1:2*half_size+1,-half_size:]) - band )
+	# bottom left corner
+	band = Z[-half_size:,half_size].reshape(-1,1)
+	Z[-half_size:,:half_size] = band - np.abs( np.fliplr(Z[-half_size:, half_size+1:2*half_size+1]) - band )
+
+	# solve system and convolve
+	if derivative == None:
+		m = np.linalg.pinv(A)[0].reshape((window_size, -1))
+		return scipy.signal.fftconvolve(Z, m, mode='valid')
+	elif derivative == 'col':
+		c = np.linalg.pinv(A)[1].reshape((window_size, -1))
+		return scipy.signal.fftconvolve(Z, -c, mode='valid')
+	elif derivative == 'row':
+		r = np.linalg.pinv(A)[2].reshape((window_size, -1))
+		return scipy.signal.fftconvolve(Z, -r, mode='valid')
+	elif derivative == 'both':
+		c = np.linalg.pinv(A)[1].reshape((window_size, -1))
+		r = np.linalg.pinv(A)[2].reshape((window_size, -1))
+		return scipy.signal.fftconvolve(Z, -r, mode='valid'), scipy.signal.fftconvolve(Z, -c, mode='valid')
+
+def smoothList(list,strippedXs=False,degree=30):  
 
 	if strippedXs==True: return Xs[0:-(len(list)-(len(list)-degree+1))]  
 
@@ -89,7 +168,27 @@ def smoothList(list,strippedXs=False,degree=50):
 
 	return smoothed
 
-def smoothPlayerPosData(data):
+def smoothPlayerPosDataDouble(data):
+
+	player1 = sgolay2d(np.asarray(data[0]), 31, 3)
+	player2 = sgolay2d(np.asarray(data[1]), 31, 3)
+	player3 = sgolay2d(np.asarray(data[2]), 31, 3)
+	player4 = sgolay2d(np.asarray(data[3]), 31, 3)
+
+	for index in range(0, len(data)):
+		data[0][index][0] = player1[index][0]
+		data[0][index][1] = player1[index][1]
+		data[1][index][0] = player2[index][0]
+		data[1][index][1] = player2[index][1]
+		data[2][index][0] = player3[index][0]
+		data[2][index][1] = player3[index][1]
+		data[3][index][0] = player4[index][0]
+		data[3][index][1] = player4[index][1]
+
+	return data
+
+def smoothPlayerPosDataSingle(data):
+
 	player1X = smoothList([ele[0] for ele in data[0]])
 	player1Y = smoothList([ele[1] for ele in data[0]])
 	player2X = smoothList([ele[0] for ele in data[1]])
@@ -367,7 +466,7 @@ if (__name__ == '__main__'):
 		_, frame = cap.read()
 		#mask = np.zeros_like(frame)
 
-		frameCount = np.int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+		frameCount = np.int(cap.get(cv.CV_CAP_PROP_FRAME_COUNT))
 
 		listActualSize = frameCount
 
@@ -426,7 +525,7 @@ if (__name__ == '__main__'):
 				lastsave = mouselist[-1]
 
 			cv2.imshow('frame',frame)
-			k = cv2.waitKey(20) & 0xff
+			k = cv2.waitKey(50) & 0xff
 			if k == 27:
 				break
 			# Now update the previous frame and previous points
@@ -492,7 +591,7 @@ if (__name__ == '__main__'):
 
 		cap.release()
 
-	playerPosList = smoothPlayerPosData(playerPosList)
+	#playerPosList = smoothPlayerPosData(playerPosList)
 
 	frameCount = frameCountCopy
 
@@ -503,6 +602,8 @@ if (__name__ == '__main__'):
 		touchlistTotal, jumplistTotal, lastBallPtsList, homoMatrixList)
 
 	mappedBallPosList = computeBallPosList(mappedPlayerPosList, mappedTouchList, mappedLastBallPtsList, frameCount)
+
+	mappedPlayerPosList = smoothPlayerPosDataSingle(mappedPlayerPosList)
 
 	while(len(mappedBallPosList) < len(mappedPlayerPosList)):
 		mappedBallPosList.append(mappedBallPosList[-1])
@@ -520,7 +621,8 @@ if (__name__ == '__main__'):
 
 	heightTopdown,widthTopdown = topViewArtNew.shape[:2]
 	heightBoard, widthBoard = boardViewNew.shape[:2]
-	fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v') # note the lower case
+	#fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v') # note the lower case
+	fourcc = cv.CV_FOURCC('m', 'p', '4', 'v')
 	tdvideo = cv2.VideoWriter('topdown' + str(video+1) + '.mov',fourcc,fps=59,frameSize=(topViewArtNew.shape[1],topViewArtNew.shape[0]),isColor=1)
 	stvideo = cv2.VideoWriter('stats' + str(video+1) + '.mov',fourcc,fps=59,frameSize=(boardViewNew.shape[1],boardViewNew.shape[0]),isColor=1)
 
